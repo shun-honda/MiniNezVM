@@ -26,6 +26,7 @@ typedef struct byteCodeInfo {
   int pos;
   uint8_t version0;
   uint8_t version1;
+  size_t memoTableSize;
   uint32_t filename_length;
   uint8_t *filename;
   uint32_t pool_size_info;
@@ -193,21 +194,28 @@ typedef struct IVALUE {
 #define OPCODE_IMEMOIZE 22
 typedef struct IMEMOIZE {
 	NezVMInstructionBase base;
+	int memoPoint;
 } IMEMOIZE;
 
 #define OPCODE_ILOOKUP 23
 typedef struct ILOOKUP {
 	NezVMInstructionBase base;
+	int memoPoint;
+	NezVMInstruction *jump;
 } ILOOKUP;
 
 #define OPCODE_IMEMOIZENODE 24
 typedef struct IMEMOIZENODE {
 	NezVMInstructionBase base;
+	int memoPoint;
 } IMEMOIZENODE;
 
 #define OPCODE_ILOOKUPNODE 25
 typedef struct ILOOKUPNODE {
 	NezVMInstructionBase base;
+	int memoPoint;
+	int index;
+	NezVMInstruction *jump;
 } ILOOKUPNODE;
 
 #define OPCODE_INOTCHAR 26

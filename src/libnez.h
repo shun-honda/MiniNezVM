@@ -8,8 +8,10 @@
 struct ParsingObject {
   int refc; // referencing counting gc
   int child_size;
-  struct ParsingObject **child;
-  struct ParsingObject *parent;
+  union {
+    struct ParsingObject *parent;
+    struct ParsingObject **child;
+  };
   long start_pos;
   long end_pos;
   const char *tag;
@@ -39,6 +41,21 @@ struct MemoryPool {
   size_t init_size;
 };
 
+struct MemoEntry {
+  long key;
+  int consumed;
+  struct ParsingObject *result;
+};
+
+struct MemoTable {
+  int shift;
+  int memoHit;
+  int memoMiss;
+  int memoStored;
+  size_t size;
+  struct MemoEntry** memoArray;
+};
+
 struct ParsingContext {
   char *inputs;
   size_t input_size;
@@ -53,6 +70,8 @@ struct ParsingContext {
   size_t pool_size;
   struct MemoryPool *mpool;
 
+  struct MemoTable *memoTable;
+
   long bytecode_length;
   long startPoint;
 
@@ -66,6 +85,8 @@ typedef struct ParsingObject *ParsingObject;
 typedef struct ParsingLog *ParsingLog;
 typedef struct ParsingContext *ParsingContext;
 typedef struct MemoryPool *MemoryPool;
+typedef struct MemoEntry *MemoEntry;
+typedef struct MemoTable *MemoTable;
 
 extern MemoryPool nez_CreateMemoryPool(MemoryPool mpool, size_t init_size);
 extern void MemoryPool_Reset(MemoryPool mpool);
@@ -96,5 +117,8 @@ void nez_pushDataLog(ParsingContext ctx, int type, long pos,
 ParsingObject nez_commitLog(ParsingContext ctx, int mark);
 void nez_abortLog(ParsingContext ctx, int mark);
 int nez_markLogStack(ParsingContext ctx);
+
+void nez_setMemo(ParsingContext ctx, const char* pos, int memoPoint, int consumed, ParsingObject result);
+MemoEntry nez_getMemo(ParsingContext ctx, const char* pos, int memoPoint);
 
 #endif

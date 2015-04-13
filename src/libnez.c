@@ -73,7 +73,6 @@ ParsingObject nez_newObject(ParsingContext ctx, const char *start) {
   o->end_pos = o->start_pos;
   o->tag = "#empty"; // default
   o->value = NULL;
-  o->parent = NULL;
   o->child = NULL;
   o->child_size = 0;
   return o;
@@ -90,13 +89,12 @@ ParsingObject nez_newObject_(ParsingContext ctx, long start, long end,
     ctx->unusedObject = o->parent;
   }
   o->refc = 0;
-  assert(start < end);
+  //assert(start < end);
   o->start_pos = start;
   o->end_pos = end;
   o->tag = tag;
   o->value = value;
   o->parent = NULL;
-  o->child = NULL;
   o->child_size = 0;
   return o;
 }
@@ -149,6 +147,7 @@ ParsingObject commitNode(ParsingContext ctx, ParsingLog start, ParsingLog end,
   if (objectSize > 0) {
     newnode->child = (ParsingObject *)calloc(sizeof(ParsingObject), objectSize);
     newnode->child_size = objectSize;
+    objectSize--;
     if(po != NULL) {
       nez_setObject(ctx, &newnode->child[0], po);
     }
@@ -159,7 +158,7 @@ ParsingObject commitNode(ParsingContext ctx, ParsingLog start, ParsingLog end,
       fprintf(stderr, "Node[%d] type=%d,cur=%p next=%p\n", commitCount, cur->type, cur, cur->next);
 #endif
       if(cur->type == LazyLink_T) {
-        nez_setObject(ctx, &newnode->child[cur->pos], cur->po);
+        nez_setObject(ctx, &newnode->child[objectSize - cur->pos], cur->po);
       }
       nez_unusedLog(ctx, cur);
     }
@@ -270,7 +269,6 @@ ParsingObject nez_commitLog(ParsingContext ctx, int mark) {
   po = commitNode(ctx, start, cur, objectSize, spos, epos, tag, value, po);
   //nez_abortLog(ctx, mark);
   return po;
-  //nez_pushDataLog(ctx, LazyLink_T, NULL, index, NULL, po);
 }
 
 void nez_abortLog(ParsingContext ctx, int mark) {
@@ -285,4 +283,29 @@ void nez_abortLog(ParsingContext ctx, int mark) {
 
 int nez_markLogStack(ParsingContext ctx) {
   return ctx->logStackSize;
+}
+
+long longkey(long pos, int memoPoint, int shift) {
+  return ((pos << shift) | memoPoint) & 0x7fffffffffffffffL;
+}
+
+void nez_setMemo(ParsingContext ctx, const char* pos, int memoPoint, int consumed, ParsingObject result) {
+  long key = longkey(pos - ctx->inputs, memoPoint, ctx->memoTable->shift);
+  int hash = (int)(key % ctx->memoTable->size);
+  MemoEntry m = ctx->memoTable->memoArray[hash];
+  m->key = key;
+  m->result = nez_setObject_(ctx, m->result, result);
+  m->consumed = consumed;
+  ctx->memoTable->memoStored++;
+}
+
+MemoEntry nez_getMemo(ParsingContext ctx, const char* pos, int memoPoint) {
+  long key = longkey(pos - ctx->inputs, memoPoint, ctx->memoTable->shift);
+  int hash = (int)(key % ctx->memoTable->size);
+  MemoEntry m = ctx->memoTable->memoArray[hash];
+  if(m->key == key) {
+    ctx->memoTable->memoHit++;
+    return m;
+  }
+  return NULL;
 }

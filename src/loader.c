@@ -1,6 +1,21 @@
 #include <stdio.h>
 #include <string.h>
+#include <math.h>
 #include "nezvm.h"
+
+static const char *get_opname(uint8_t opcode) {
+  switch (opcode) {
+#define OP_DUMPCASE(OP) \
+  case NEZVM_OP_##OP:   \
+    return "" #OP;
+    NEZ_IR_EACH(OP_DUMPCASE);
+  default:
+    assert(0 && "UNREACHABLE");
+    break;
+#undef OP_DUMPCASE
+  }
+  return "";
+}
 
 /* load input file or bytecode file */
 char *loadFile(const char *filename, size_t *length) {
@@ -28,6 +43,7 @@ static void dump_byteCodeInfo(byteCodeInfo *info) {
   fprintf(stderr, "ByteCodeVersion:%u.%u\n", info->version0, info->version1);
   fprintf(stderr, "PEGFile:%s\n", info->filename);
   fprintf(stderr, "LengthOfByteCode:%zd\n", (size_t)info->bytecode_length);
+  fprintf(stderr, "MemoTableSize:%zd\n", info->memoTableSize);
   fprintf(stderr, "\n");
 }
 
@@ -225,21 +241,28 @@ static void Emit_VALUE(NezVMInstruction *inst, ByteCodeLoader *loader) {
 static void Emit_MEMOIZE(NezVMInstruction *inst, ByteCodeLoader *loader) {
   IMEMOIZE *ir = (IMEMOIZE *)inst;
   ir->base.opcode = OPCODE_IMEMOIZE;
+  ir->memoPoint = Loader_Read32(loader);
 }
 
 static void Emit_LOOKUP(NezVMInstruction *inst, ByteCodeLoader *loader) {
   ILOOKUP *ir = (ILOOKUP *)inst;
   ir->base.opcode = OPCODE_ILOOKUP;
+  ir->memoPoint = Loader_Read32(loader);
+  ir->jump = Loader_GetJumpAddr(loader, inst);
 }
 
 static void Emit_MEMOIZENODE(NezVMInstruction *inst, ByteCodeLoader *loader) {
   IMEMOIZENODE *ir = (IMEMOIZENODE *)inst;
   ir->base.opcode = OPCODE_IMEMOIZENODE;
+  ir->memoPoint = Loader_Read32(loader);
 }
 
 static void Emit_LOOKUPNODE(NezVMInstruction *inst, ByteCodeLoader *loader) {
   ILOOKUPNODE *ir = (ILOOKUPNODE *)inst;
   ir->base.opcode = OPCODE_ILOOKUPNODE;
+  ir->memoPoint = Loader_Read32(loader);
+  ir->index = Loader_Read32(loader);
+  ir->jump = Loader_GetJumpAddr(loader, inst);
 }
 
 static void Emit_NOTCHAR(NezVMInstruction *inst, ByteCodeLoader *loader) {
@@ -358,6 +381,22 @@ NezVMInstruction *nez_LoadMachineCode(ParsingContext context,
     }
   }
 
+  /*
+  ** memo table size
+  ** default window size is 32 byte
+  */
+  int memoPointSize = read32(buf, &info);
+  info.memoTableSize = 32 * (memoPointSize + 1);
+  context->memoTable = __malloc(sizeof(struct MemoTable));
+  context->memoTable->size = info.memoTableSize;
+  context->memoTable->memoArray = __malloc(sizeof(struct MemoEntry) * context->memoTable->size);
+  context->memoTable->shift = (int)(log(memoPointSize) / log(2.0)) + 1;
+  for(size_t i = 0; i < context->memoTable->size; i++) {
+    context->memoTable->memoArray[i] = __malloc(sizeof(struct MemoEntry));
+    context->memoTable->memoArray[i]->key = -1;
+    context->memoTable->memoArray[i]->consumed = 0;
+  }
+
   /* bytecode length */
   info.bytecode_length = read64(buf, &info);
   dump_byteCodeInfo(&info);
@@ -385,7 +424,7 @@ NezVMInstruction *nez_LoadMachineCode(ParsingContext context,
   /* f_convert[] is function pointer that emit instruction */
   for (uint64_t i = 0; i < info.bytecode_length; i++) {
     int opcode = buf[info.pos++];
-    //fprintf(stderr, "%s\n", get_opname(opcode));
+    fprintf(stderr, "%s\n", get_opname(opcode));
     f_convert[opcode](inst, &loader);
     inst++;
   }

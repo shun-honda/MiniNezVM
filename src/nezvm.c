@@ -3,20 +3,6 @@
 
 #include "nezvm.h"
 
-static const char *get_opname(uint8_t opcode) {
-  switch (opcode) {
-#define OP_DUMPCASE(OP) \
-  case NEZVM_OP_##OP:   \
-    return "" #OP;
-    NEZ_IR_EACH(OP_DUMPCASE);
-  default:
-    assert(0 && "UNREACHABLE");
-    break;
-#undef OP_DUMPCASE
-  }
-  return "";
-}
-
 void nez_PrintErrorInfo(const char *errmsg) {
   fprintf(stderr, "%s\n", errmsg);
   exit(EXIT_FAILURE);
@@ -232,8 +218,8 @@ long nez_VM_Execute(ParsingContext context, NezVMInstruction *inst) {
   }
   OP(COMMIT) {
     ICOMMIT *ir = (ICOMMIT *)pc;
-    ParsingObject po = nez_commitLog(context, (int)POP_SP());
-    nez_pushDataLog(context, LazyLink_T, 0, ir->index, NULL, po);
+    LEFT = nez_commitLog(context, (int)POP_SP());
+    nez_pushDataLog(context, LazyLink_T, 0, ir->index, NULL, LEFT);
     DISPATCH_NEXT;
   }
   OP(ABORT) {
@@ -251,12 +237,43 @@ long nez_VM_Execute(ParsingContext context, NezVMInstruction *inst) {
     DISPATCH_NEXT;
   }
   OP(MEMOIZE) {
+    IMEMOIZE *ir = (IMEMOIZE *)pc;
+    int mp = ir->memoPoint;
+    int len = cur - POP_SP();
+    nez_setMemo(context, cur, mp, len, NULL);
+    DISPATCH_NEXT;
   }
   OP(LOOKUP) {
+    ILOOKUP *ir = (ILOOKUP *)pc;
+    int mp = ir->memoPoint;
+    MemoEntry m = nez_getMemo(context, cur, mp);
+    if(m != NULL) {
+      if(!m->consumed) {
+        JUMP(ir->jump);
+      }
+      cur += m->consumed;
+    }
+    DISPATCH_NEXT;
   }
   OP(MEMOIZENODE) {
+    IMEMOIZENODE *ir = (IMEMOIZENODE *)pc;
+    int mp = ir->memoPoint;
+    int len = cur - POP_SP();
+    nez_setMemo(context, cur, mp, len, LEFT);
+    DISPATCH_NEXT;
   }
   OP(LOOKUPNODE) {
+    ILOOKUPNODE *ir = (ILOOKUPNODE *)pc;
+    int mp = ir->memoPoint;
+    MemoEntry m = nez_getMemo(context, cur, mp);
+    if(m != NULL) {
+      if(!m->consumed) {
+        JUMP(ir->jump);
+      }
+      cur += m->consumed;
+      nez_pushDataLog(context, LazyLink_T, 0, ir->index, NULL, m->result);
+    }
+    DISPATCH_NEXT;
   }
   OP(NOTCHAR) {
     INOTCHAR *ir = (INOTCHAR *)pc;
