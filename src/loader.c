@@ -424,7 +424,9 @@ NezVMInstruction *nez_LoadMachineCode(ParsingContext context,
   /* f_convert[] is function pointer that emit instruction */
   for (uint64_t i = 0; i < info.bytecode_length; i++) {
     int opcode = buf[info.pos++];
+#if NEZVM_DEBUG
     fprintf(stderr, "%s\n", get_opname(opcode));
+#endif
     f_convert[opcode](inst, &loader);
     inst++;
   }

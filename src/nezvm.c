@@ -8,6 +8,10 @@ void nez_PrintErrorInfo(const char *errmsg) {
   exit(EXIT_FAILURE);
 }
 
+void nez_printMemoInfo(MemoTable m) {
+  fprintf(stderr, "memoHit:%d, memoMiss:%d, memoHit/memoMiss:%f\n", m->memoHit, m->memoMiss, ((double)m->memoHit/m->memoMiss));
+}
+
 static uint64_t timer() {
   struct timeval tv;
   gettimeofday(&tv, NULL);
@@ -239,40 +243,65 @@ long nez_VM_Execute(ParsingContext context, NezVMInstruction *inst) {
   OP(MEMOIZE) {
     IMEMOIZE *ir = (IMEMOIZE *)pc;
     int mp = ir->memoPoint;
-    int len = cur - POP_SP();
-    nez_setMemo(context, cur, mp, len, NULL);
+    const char* pos = POP_SP();
+    int len = cur - pos;
+    if(cur-context->inputs > 140) {
+      fprintf(stderr, "debug\n");
+    }
+#if NEZVM_DEBUG
+    fprintf(stderr, "[%ld]", pc-inst);
+#endif
+    nez_setMemo(context, pos, mp, len, NULL);
     DISPATCH_NEXT;
   }
   OP(LOOKUP) {
     ILOOKUP *ir = (ILOOKUP *)pc;
     int mp = ir->memoPoint;
+#if NEZVM_DEBUG
+    fprintf(stderr, "[%ld]", pc-inst);
+#endif
     MemoEntry m = nez_getMemo(context, cur, mp);
     if(m != NULL) {
       if(!m->consumed) {
-        JUMP(ir->jump);
+        failflag = 1;
       }
-      cur += m->consumed;
+      else {
+        cur += m->consumed;
+      }
+      JUMP(ir->jump);
     }
+    PUSH_SP(cur);
     DISPATCH_NEXT;
   }
   OP(MEMOIZENODE) {
     IMEMOIZENODE *ir = (IMEMOIZENODE *)pc;
     int mp = ir->memoPoint;
-    int len = cur - POP_SP();
-    nez_setMemo(context, cur, mp, len, LEFT);
+    const char* pos = POP_SP();
+    int len = cur - pos;
+#if NEZVM_DEBUG
+    fprintf(stderr, "[%ld]", pc-inst);
+#endif
+    nez_setMemo(context, pos, mp, len, LEFT);
     DISPATCH_NEXT;
   }
   OP(LOOKUPNODE) {
     ILOOKUPNODE *ir = (ILOOKUPNODE *)pc;
     int mp = ir->memoPoint;
+#if NEZVM_DEBUG
+    fprintf(stderr, "[%ld]", pc-inst);
+#endif
     MemoEntry m = nez_getMemo(context, cur, mp);
     if(m != NULL) {
       if(!m->consumed) {
-        JUMP(ir->jump);
+        failflag = 1;
       }
-      cur += m->consumed;
-      nez_pushDataLog(context, LazyLink_T, 0, ir->index, NULL, m->result);
+      else {
+        cur += m->consumed;
+        nez_pushDataLog(context, LazyLink_T, 0, ir->index, NULL, m->result);
+      }
+      JUMP(ir->jump);
     }
+    PUSH_SP(cur);
     DISPATCH_NEXT;
   }
   OP(NOTCHAR) {
@@ -349,6 +378,7 @@ ParsingObject nez_Parse(ParsingContext context, NezVMInstruction *inst) {
     nez_PrintErrorInfo("parse error");
   }
   dump_pego(&context->left, context->inputs, 0);
+  nez_printMemoInfo(context->memoTable);
   return context->left;
 }
 

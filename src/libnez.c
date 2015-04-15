@@ -297,6 +297,9 @@ void nez_setMemo(ParsingContext ctx, const char* pos, int memoPoint, int consume
   m->result = nez_setObject_(ctx, m->result, result);
   m->consumed = consumed;
   ctx->memoTable->memoStored++;
+#if NEZVM_DEBUG
+  fprintf(stderr, "setMemo(key:%ld, pos:%ld, len:%d)\n", key, pos - ctx->inputs, consumed);
+#endif
 }
 
 MemoEntry nez_getMemo(ParsingContext ctx, const char* pos, int memoPoint) {
@@ -304,8 +307,15 @@ MemoEntry nez_getMemo(ParsingContext ctx, const char* pos, int memoPoint) {
   int hash = (int)(key % ctx->memoTable->size);
   MemoEntry m = ctx->memoTable->memoArray[hash];
   if(m->key == key) {
+#if NEZVM_DEBUG
+    fprintf(stderr, "memoHit(key:%ld, len:%d)\n", key, m->consumed);
+#endif
     ctx->memoTable->memoHit++;
     return m;
   }
+#if NEZVM_DEBUG
+  fprintf(stderr, "memoMiss(key:%ld)\n", key);
+#endif
+  ctx->memoTable->memoMiss++;
   return NULL;
 }
