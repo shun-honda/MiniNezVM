@@ -37,7 +37,6 @@ set(NEZVM_SOURCE
 			src/libnez.c
 			src/main.c
 			src/loader.c
-			src/bitset.c
 			src/memory_pool.c
 			src/dump.c
 )

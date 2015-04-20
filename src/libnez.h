@@ -39,6 +39,11 @@ struct MemoryPool {
   size_t init_size;
 };
 
+union StackEntry {
+  const char* pos;
+  const struct NezVMInstruction *func;
+};
+
 struct ParsingContext {
   char *inputs;
   size_t input_size;
@@ -56,16 +61,19 @@ struct ParsingContext {
   long bytecode_length;
   long startPoint;
 
-  long *stack_pointer;
-  union NezVMInstruction **call_stack_pointer;
-  long *stack_pointer_base;
-  union NezVMInstruction **call_stack_pointer_base;
+  union StackEntry* stack_pointer;
+  union StackEntry* stack_pointer_base;
+  // long *stack_pointer;
+  // struct NezVMInstruction **call_stack_pointer;
+  // long *stack_pointer_base;
+  // struct NezVMInstruction **call_stack_pointer_base;
 };
 
 typedef struct ParsingObject *ParsingObject;
 typedef struct ParsingLog *ParsingLog;
 typedef struct ParsingContext *ParsingContext;
 typedef struct MemoryPool *MemoryPool;
+typedef union StackEntry* StackEntry;
 
 extern MemoryPool nez_CreateMemoryPool(MemoryPool mpool, size_t init_size);
 extern void MemoryPool_Reset(MemoryPool mpool);

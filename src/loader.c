@@ -1,8 +1,49 @@
 #include <stdio.h>
 #include <string.h>
+#include "libnez.h"
 #include "nezvm.h"
 
-/* load input file or bytecode file */
+#define NEZVM_COUNT_BYTECODE_MALLOCED_SIZE 1
+#if defined(NEZVM_COUNT_BYTECODE_MALLOCED_SIZE)
+static size_t bytecode_malloced_size = 0;
+#endif
+static void *__malloc(size_t size) {
+#if defined(NEZVM_COUNT_BYTECODE_MALLOCED_SIZE)
+  bytecode_malloced_size += size;
+#endif
+  return malloc(size);
+}
+
+typedef struct byteCodeInfo {
+  int pos;
+  uint8_t version0;
+  uint8_t version1;
+  uint32_t filename_length;
+  uint8_t *filename;
+  uint32_t pool_size_info;
+  uint64_t bytecode_length;
+} byteCodeInfo;
+
+typedef struct ByteCodeLoader {
+  char *input;
+  byteCodeInfo *info;
+  NezVMInstruction *head;
+} ByteCodeLoader;
+
+static const char *get_opname(uint8_t opcode) {
+  switch (opcode) {
+#define OP_DUMPCASE(OP) \
+  case NEZVM_OP_##OP:   \
+    return "" #OP;
+    NEZ_IR_EACH(OP_DUMPCASE);
+  default:
+    assert(0 && "UNREACHABLE");
+    break;
+#undef OP_DUMPCASE
+  }
+  return "";
+}
+
 char *loadFile(const char *filename, size_t *length) {
   size_t len = 0;
   FILE *fp = fopen(filename, "rb");
@@ -90,234 +131,79 @@ static nezvm_string_ptr_t Loader_ReadName(ByteCodeLoader *loader) {
   return str;
 }
 
-static void Emit_EXIT(NezVMInstruction *inst, ByteCodeLoader *loader) {
-  IEXIT *ir = (IEXIT *)inst;
-  ir->base.opcode = OPCODE_IEXIT;
-}
-
-static void Emit_JUMP(NezVMInstruction *inst, ByteCodeLoader *loader) {
-  IJUMP *ir = (IJUMP *)inst;
-  ir->base.opcode = OPCODE_IJUMP;
-  ir->jump = Loader_GetJumpAddr(loader, inst);
-}
-
-static void Emit_CALL(NezVMInstruction *inst, ByteCodeLoader *loader) {
-  ICALL *ir = (ICALL *)inst;
-  ir->base.opcode = OPCODE_ICALL;
-  ir->jump = Loader_GetJumpAddr(loader, inst);
-}
-
-static void Emit_RET(NezVMInstruction *inst, ByteCodeLoader *loader) {
-  IRET *ir = (IRET *)inst;
-  ir->base.opcode = OPCODE_IRET;
-}
-
-static void Emit_IFFAIL(NezVMInstruction *inst, ByteCodeLoader *loader) {
-  IIFFAIL *ir = (IIFFAIL *)inst;
-  ir->base.opcode = OPCODE_IIFFAIL;
-  ir->jump = Loader_GetJumpAddr(loader, inst);
-}
-
-static void Emit_IFSUCC(NezVMInstruction *inst, ByteCodeLoader *loader) {
-  IIFSUCC *ir = (IIFSUCC *)inst;
-  ir->base.opcode = OPCODE_IIFSUCC;
-  ir->jump = Loader_GetJumpAddr(loader, inst);
-}
-
-static void Emit_CHAR(NezVMInstruction *inst, ByteCodeLoader *loader) {
-  ICHAR *ir = (ICHAR *)inst;
-  ir->base.opcode = OPCODE_ICHAR;
-  ir->c = Loader_Read32(loader);
-  ir->jump = Loader_GetJumpAddr(loader, inst);
-}
-
-static void Emit_CHARMAP(NezVMInstruction *inst, ByteCodeLoader *loader) {
-  ICHARMAP *ir = (ICHARMAP *)inst;
-  ir->base.opcode = OPCODE_ICHARMAP;
-  int len = Loader_Read16(loader);
-  ir->set = (bitset_ptr_t)__malloc(sizeof(bitset_t));
-  bitset_init(ir->set);
-  for (int i = 0; i < len; i++) {
-    unsigned c = Loader_Read32(loader);
-    bitset_set(ir->set, c);
-  }
-  ir->jump = Loader_GetJumpAddr(loader, inst);
-}
-
-static void Emit_STRING(NezVMInstruction *inst, ByteCodeLoader *loader) {
-  ISTRING *ir = (ISTRING *)inst;
-  ir->base.opcode = OPCODE_ISTRING;
-  ir->str = Loader_ReadString(loader);
-  ir->jump = Loader_GetJumpAddr(loader, inst);
-}
-
-static void Emit_ANY(NezVMInstruction *inst, ByteCodeLoader *loader) {
-  IANY *ir = (IANY *)inst;
-  ir->base.opcode = OPCODE_IANY;
-  ir->jump = Loader_GetJumpAddr(loader, inst);
-}
-
-static void Emit_PUSHpos(NezVMInstruction *inst, ByteCodeLoader *loader) {
-  IPUSHpos *ir = (IPUSHpos *)inst;
-  ir->base.opcode = OPCODE_IPUSHpos;
-}
-
-static void Emit_PUSHmark(NezVMInstruction *inst, ByteCodeLoader *loader) {
-  IPUSHmark *ir = (IPUSHmark *)inst;
-  ir->base.opcode = OPCODE_IPUSHmark;
-}
-
-static void Emit_POPpos(NezVMInstruction *inst, ByteCodeLoader *loader) {
-  IPOPpos *ir = (IPOPpos *)inst;
-  ir->base.opcode = OPCODE_IPOPpos;
-}
-
-static void Emit_STOREpos(NezVMInstruction *inst, ByteCodeLoader *loader) {
-  ISTOREpos *ir = (ISTOREpos *)inst;
-  ir->base.opcode = OPCODE_ISTOREpos;
-}
-
-static void Emit_STOREflag(NezVMInstruction *inst, ByteCodeLoader *loader) {
-  ISTOREflag *ir = (ISTOREflag *)inst;
-  ir->base.opcode = OPCODE_ISTOREflag;
-  ir->val = Loader_Read32(loader);
-}
-
-static void Emit_NEW(NezVMInstruction *inst, ByteCodeLoader *loader) {
-  INEW *ir = (INEW *)inst;
-  ir->base.opcode = OPCODE_INEW;
-}
-
-static void Emit_LEFTJOIN(NezVMInstruction *inst, ByteCodeLoader *loader) {
-  ILEFTJOIN *ir = (ILEFTJOIN *)inst;
-  ir->base.opcode = OPCODE_ILEFTJOIN;
-  ir->index = Loader_Read32(loader);
-}
-
-static void Emit_CAPTURE(NezVMInstruction *inst, ByteCodeLoader *loader) {
-  ICAPTURE *ir = (ICAPTURE *)inst;
-  ir->base.opcode = OPCODE_ICAPTURE;
-}
-
-static void Emit_COMMIT(NezVMInstruction *inst, ByteCodeLoader *loader) {
-  ICOMMIT *ir = (ICOMMIT *)inst;
-  ir->base.opcode = OPCODE_ICOMMIT;
-  ir->index = Loader_Read32(loader);
-}
-
-static void Emit_ABORT(NezVMInstruction *inst, ByteCodeLoader *loader) {
-  IABORT *ir = (IABORT *)inst;
-  ir->base.opcode = OPCODE_IABORT;
-}
-
-static void Emit_TAG(NezVMInstruction *inst, ByteCodeLoader *loader) {
-  ITAG *ir = (ITAG *)inst;
-  ir->base.opcode = OPCODE_ITAG;
-  ir->tag = Loader_ReadName(loader);
-}
-
-static void Emit_VALUE(NezVMInstruction *inst, ByteCodeLoader *loader) {
-  IVALUE *ir = (IVALUE *)inst;
-  ir->base.opcode = OPCODE_IVALUE;
-  ir->value = Loader_ReadName(loader);
-}
-
-static void Emit_MEMOIZE(NezVMInstruction *inst, ByteCodeLoader *loader) {
-  IMEMOIZE *ir = (IMEMOIZE *)inst;
-  ir->base.opcode = OPCODE_IMEMOIZE;
-}
-
-static void Emit_LOOKUP(NezVMInstruction *inst, ByteCodeLoader *loader) {
-  ILOOKUP *ir = (ILOOKUP *)inst;
-  ir->base.opcode = OPCODE_ILOOKUP;
-}
-
-static void Emit_MEMOIZENODE(NezVMInstruction *inst, ByteCodeLoader *loader) {
-  IMEMOIZENODE *ir = (IMEMOIZENODE *)inst;
-  ir->base.opcode = OPCODE_IMEMOIZENODE;
-}
-
-static void Emit_LOOKUPNODE(NezVMInstruction *inst, ByteCodeLoader *loader) {
-  ILOOKUPNODE *ir = (ILOOKUPNODE *)inst;
-  ir->base.opcode = OPCODE_ILOOKUPNODE;
-}
-
-static void Emit_NOTCHAR(NezVMInstruction *inst, ByteCodeLoader *loader) {
-  INOTCHAR *ir = (INOTCHAR *)inst;
-  ir->base.opcode = OPCODE_INOTCHAR;
-  ir->c = Loader_Read32(loader);
-  ir->jump = Loader_GetJumpAddr(loader, inst);
-}
-
-static void Emit_NOTCHARMAP(NezVMInstruction *inst, ByteCodeLoader *loader) {
-  INOTCHARMAP *ir = (INOTCHARMAP *)inst;
-  ir->base.opcode = OPCODE_INOTCHARMAP;
-  int len = Loader_Read16(loader);
-  ir->set = (bitset_ptr_t)__malloc(sizeof(bitset_t));
-  bitset_init(ir->set);
-  for (int i = 0; i < len; i++) {
-    unsigned c = Loader_Read32(loader);
-    bitset_set(ir->set, c);
-  }
-  ir->jump = Loader_GetJumpAddr(loader, inst);
-}
-
-static void Emit_NOTSTRING(NezVMInstruction *inst, ByteCodeLoader *loader) {
-  INOTSTRING *ir = (INOTSTRING *)inst;
-  ir->base.opcode = OPCODE_INOTSTRING;
-  ir->str = Loader_ReadString(loader);
-  ir->jump = Loader_GetJumpAddr(loader, inst);
-}
-
-static void Emit_NOTCHARANY(NezVMInstruction *inst, ByteCodeLoader *loader) {
-  INOTCHARANY *ir = (INOTCHARANY *)inst;
-  ir->base.opcode = OPCODE_INOTCHARANY;
-  ir->c = Loader_Read32(loader);
-  ir->jump = Loader_GetJumpAddr(loader, inst);
-}
-
-static void Emit_OPTIONALCHAR(NezVMInstruction *inst, ByteCodeLoader *loader) {
-  IOPTIONALCHAR *ir = (IOPTIONALCHAR *)inst;
-  ir->base.opcode = OPCODE_IOPTIONALCHAR;
-  ir->c = Loader_Read32(loader);
-}
-
-static void Emit_OPTIONALCHARMAP(NezVMInstruction *inst, ByteCodeLoader *loader) {
-  IOPTIONALCHARMAP *ir = (IOPTIONALCHARMAP *)inst;
-  ir->base.opcode = OPCODE_IOPTIONALCHARMAP;
-  int len = Loader_Read16(loader);
-  ir->set = (bitset_ptr_t)__malloc(sizeof(bitset_t));
-  bitset_init(ir->set);
-  for (int i = 0; i < len; i++) {
-    unsigned c = Loader_Read32(loader);
-    bitset_set(ir->set, c);
+void nez_EmitInstruction(NezVMInstruction* ir, ByteCodeLoader *loader) {
+  switch(ir->opcode) {
+    case NEZVM_OP_JUMP:
+    case NEZVM_OP_CALL:
+    case NEZVM_OP_IFFAIL:
+    case NEZVM_OP_IFSUCC:
+    case NEZVM_OP_ANY: {
+      ir->arg0.jump = Loader_GetJumpAddr(loader, ir);
+      break;
+    }
+    case NEZVM_OP_CHAR:
+    case NEZVM_OP_NOTCHAR:
+    case NEZVM_OP_NOTCHARANY: {
+      ir->arg0.c = Loader_Read32(loader);
+      ir->arg1.jump = Loader_GetJumpAddr(loader, ir);
+      break;
+    }
+    case NEZVM_OP_CHARMAP:
+    case NEZVM_OP_NOTCHARMAP: {
+      int len = Loader_Read16(loader);
+      ir->arg0.set = (bitset_ptr_t)__malloc(sizeof(bitset_t));
+      bitset_init(ir->arg0.set);
+      for (int i = 0; i < len; i++) {
+        unsigned c = Loader_Read32(loader);
+        bitset_set(ir->arg0.set, c);
+      }
+      ir->arg1.jump = Loader_GetJumpAddr(loader, ir);
+      break;
+    }
+    case NEZVM_OP_STRING:
+    case NEZVM_OP_NOTSTRING: {
+      ir->arg0.str = Loader_ReadString(loader);
+      ir->arg1.jump = Loader_GetJumpAddr(loader, ir);
+      break;
+    }
+    case NEZVM_OP_STOREflag: {
+      ir->arg0.val = Loader_Read32(loader);
+      break;
+    }
+    case NEZVM_OP_LEFTJOIN: {
+      ir->arg0.val = Loader_Read32(loader);
+      break;
+    }
+    case NEZVM_OP_COMMIT: {
+      ir->arg0.val = Loader_Read32(loader);
+      break;
+    }
+    case NEZVM_OP_TAG:
+    case NEZVM_OP_VALUE: {
+      ir->arg0.str = Loader_ReadName(loader);
+      break;
+    }
+    case NEZVM_OP_OPTIONALCHAR: {
+      ir->arg0.c = Loader_Read32(loader);
+      break;
+    }
+    case NEZVM_OP_OPTIONALCHARMAP:
+    case NEZVM_OP_ZEROMORECHARMAP: {
+      int len = Loader_Read16(loader);
+      ir->arg0.set = (bitset_ptr_t)__malloc(sizeof(bitset_t));
+      bitset_init(ir->arg0.set);
+      for (int i = 0; i < len; i++) {
+        unsigned c = Loader_Read32(loader);
+        bitset_set(ir->arg0.set, c);
+      }
+      break;
+    }
+    case NEZVM_OP_OPTIONALSTRING: {
+      ir->arg0.str = Loader_ReadString(loader);
+      break;
+    }
   }
 }
-
-static void Emit_OPTIONALSTRING(NezVMInstruction *inst, ByteCodeLoader *loader) {
-  IOPTIONALSTRING *ir = (IOPTIONALSTRING *)inst;
-  ir->base.opcode = OPCODE_IOPTIONALSTRING;
-  ir->str = Loader_ReadString(loader);
-}
-
-static void Emit_ZEROMORECHARMAP(NezVMInstruction *inst, ByteCodeLoader *loader) {
-  IZEROMORECHARMAP *ir = (IZEROMORECHARMAP *)inst;
-  ir->base.opcode = OPCODE_IZEROMORECHARMAP;
-  int len = Loader_Read16(loader);
-  ir->set = (bitset_ptr_t)__malloc(sizeof(bitset_t));
-  bitset_init(ir->set);
-  for (int i = 0; i < len; i++) {
-    unsigned c = Loader_Read32(loader);
-    bitset_set(ir->set, c);
-  }
-}
-
-typedef void (*convert_to_lir_func_t)(NezVMInstruction *, ByteCodeLoader *);
-static convert_to_lir_func_t f_convert[] = {
-#define DEFINE_CONVERT_FUNC(OP) Emit_##OP,
-  NEZ_IR_EACH(DEFINE_CONVERT_FUNC)
-#undef DEFINE_CONVERT_FUNC
-};
 
 NezVMInstruction *nez_VM_Prepare(ParsingContext, NezVMInstruction *);
 
@@ -384,9 +270,9 @@ NezVMInstruction *nez_LoadMachineCode(ParsingContext context,
 
   /* f_convert[] is function pointer that emit instruction */
   for (uint64_t i = 0; i < info.bytecode_length; i++) {
-    int opcode = buf[info.pos++];
-    //fprintf(stderr, "%s\n", get_opname(opcode));
-    f_convert[opcode](inst, &loader);
+    inst->opcode = buf[info.pos++];
+    fprintf(stderr, "%s\n", get_opname(inst->opcode));
+    nez_EmitInstruction(inst, &loader);
     inst++;
   }
 
@@ -396,7 +282,7 @@ NezVMInstruction *nez_LoadMachineCode(ParsingContext context,
 
   context->bytecode_length = info.bytecode_length;
   context->pool_size = info.pool_size_info;
-#if defined(PEGVM_COUNT_BYTECODE_MALLOCED_SIZE)
+#if defined(NEZVM_COUNT_BYTECODE_MALLOCED_SIZE)
   fprintf(stderr, "malloced_size=%zdKB, %zdKB\n",
           (sizeof(*inst) * info.bytecode_length) / 1024,
           bytecode_malloced_size / 1024);
@@ -405,56 +291,25 @@ NezVMInstruction *nez_LoadMachineCode(ParsingContext context,
   return nez_VM_Prepare(context, head);
 }
 
-void nez_DisposeInstruction(NezVMInstruction *inst, long length) {
+void nez_DisposeInstruction(NezVMInstruction *ir, long length) {
   for (long i = 0; i < length; i++) {
-    int opcode = inst[i].base.opcode;
-    switch (opcode) {
-      case OPCODE_ICHARMAP: {
-        ICHARMAP *ir = (ICHARMAP *)inst;
-        free(ir->set);
+    switch (ir[i].opcode) {
+      case NEZVM_OP_CHARMAP:
+      case NEZVM_OP_NOTCHARMAP:
+      case NEZVM_OP_OPTIONALCHARMAP:
+      case NEZVM_OP_ZEROMORECHARMAP: {
+        free(ir->arg0.set);
         break;
       }
-      case OPCODE_ISTRING: {
-        ISTRING *ir = (ISTRING *)inst;
-        free(ir->str);
-        break;
-      }
-      case OPCODE_ITAG: {
-        ITAG *ir = (ITAG *)inst;
-        free(ir->tag);
-        break;
-      }
-      case OPCODE_IVALUE: {
-        IVALUE *ir = (IVALUE *)inst;
-        free(ir->value);
-        break;
-      }
-      case OPCODE_INOTCHARMAP: {
-        INOTCHARMAP *ir = (INOTCHARMAP *)inst;
-        free(ir->set);
-        break;
-      }
-      case OPCODE_INOTSTRING: {
-        INOTSTRING *ir = (INOTSTRING *)inst;
-        free(ir->str);
-        break;
-      }
-      case OPCODE_IOPTIONALCHARMAP: {
-        IOPTIONALCHARMAP *ir = (IOPTIONALCHARMAP *)inst;
-        free(ir->set);
-        break;
-      }
-      case OPCODE_IOPTIONALSTRING: {
-        IOPTIONALSTRING *ir = (IOPTIONALSTRING *)inst;
-        free(ir->str);
-        break;
-      }
-      case OPCODE_IZEROMORECHARMAP: {
-        IZEROMORECHARMAP *ir = (IZEROMORECHARMAP *)inst;
-        free(ir->set);
+      case NEZVM_OP_STRING:
+      case NEZVM_OP_NOTSTRING:
+      case NEZVM_OP_OPTIONALSTRING:
+      case NEZVM_OP_TAG:
+      case NEZVM_OP_VALUE: {
+        free(ir->arg0.str);
         break;
       }
     }
   }
-  free(inst);
+  free(ir);
 }

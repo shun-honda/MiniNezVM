@@ -3,7 +3,7 @@
 #include <assert.h>
 #include <unistd.h>
 #include <getopt.h>
-
+#include "libnez.h"
 #include "nezvm.h"
 
 void dump_pego_file(FILE *file, ParsingObject *pego, char *source, int level);

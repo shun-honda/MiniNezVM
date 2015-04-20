@@ -1,21 +1,7 @@
 #include <stdio.h>
 #include <sys/time.h> // gettimeofday
-
+#include "libnez.h"
 #include "nezvm.h"
-
-static const char *get_opname(uint8_t opcode) {
-  switch (opcode) {
-#define OP_DUMPCASE(OP) \
-  case NEZVM_OP_##OP:   \
-    return "" #OP;
-    NEZ_IR_EACH(OP_DUMPCASE);
-  default:
-    assert(0 && "UNREACHABLE");
-    break;
-#undef OP_DUMPCASE
-  }
-  return "";
-}
 
 void nez_PrintErrorInfo(const char *errmsg) {
   fprintf(stderr, "%s\n", errmsg);
@@ -63,17 +49,17 @@ static ParsingObject nez_newObject2(ParsingContext context, const char *cur,
 #define unlikely(x) (x)
 #endif
 
-#define PUSH_IP(PC) *cp++ = (PC)
-#define POP_IP() --cp
+#define PUSH_IP(PC) (sp++)->func = (PC)
+#define POP_IP() --sp
 #define SP_TOP(INST) (*sp)
-#define PUSH_SP(INST) (*sp++ = (INST))
-#define POP_SP(INST) (*--sp)
+#define PUSH_SP(INST) ((sp++)->pos = (INST))
+#define POP_SP(INST) ((--sp)->pos)
 
-#define GET_ADDR(PC) ((PC)->base).addr
+#define GET_ADDR(PC) ((PC)->addr)
 #define DISPATCH_NEXT goto *GET_ADDR(++pc)
 #define JUMP(dst) goto *GET_ADDR(pc = dst)
 #define JUMP_REL(dst) goto *GET_ADDR(pc += dst)
-#define RET goto *GET_ADDR(pc = *POP_IP())
+#define RET goto *GET_ADDR(pc = (POP_IP())->func)
 
 #define OP(OP) NEZVM_OP_##OP:
 
@@ -103,13 +89,9 @@ long nez_VM_Execute(ParsingContext context, NezVMInstruction *inst) {
   // const char *Reg3 = 0;
   register int failflag = 0;
   register const NezVMInstruction *pc;
-  ParsingObject *osp;
-  const NezVMInstruction **cp;
-  const char **sp;
+  StackEntry sp;
   pc = inst + context->startPoint;
-  sp = (const char **)context->stack_pointer;
-  cp = (const NezVMInstruction **)context->call_stack_pointer;
-  int num = 0;
+  sp = context->stack_pointer;
 
   if (inst == NULL) {
     return (long)table;
@@ -126,11 +108,11 @@ long nez_VM_Execute(ParsingContext context, NezVMInstruction *inst) {
     return failflag;
   }
   OP(JUMP) {
-    NezVMInstruction *dst = ((IJUMP *)pc)->jump;
+    NezVMInstruction *dst = pc->arg0.jump;
     JUMP(dst);
   }
   OP(CALL) {
-    NezVMInstruction *dst = ((ICALL *)pc)->jump;
+    NezVMInstruction *dst = pc->arg0.jump;
     PUSH_IP(pc + 1);
     JUMP(dst);
   }
@@ -138,7 +120,7 @@ long nez_VM_Execute(ParsingContext context, NezVMInstruction *inst) {
     RET;
   }
   OP(IFFAIL) {
-    NezVMInstruction *dst = ((IIFFAIL *)pc)->jump;
+    NezVMInstruction *dst = pc->arg0.jump;
     if (failflag) {
       JUMP(dst);
     } else {
@@ -146,7 +128,7 @@ long nez_VM_Execute(ParsingContext context, NezVMInstruction *inst) {
     }
   }
   OP(IFSUCC) {
-    NezVMInstruction *dst = ((IIFSUCC *)pc)->jump;
+    NezVMInstruction *dst = pc->arg0.jump;
     if (failflag == 0) {
       JUMP(dst);
     } else {
@@ -155,44 +137,40 @@ long nez_VM_Execute(ParsingContext context, NezVMInstruction *inst) {
   }
   OP(CHAR) {
     char ch = *cur++;
-    ICHAR *ir = (ICHAR *)pc;
-    if (ir->c == ch) {
+    if (pc->arg0.c == ch) {
       DISPATCH_NEXT;
     } else {
       --cur;
       failflag = 1;
-      JUMP(ir->jump);
+      JUMP(pc->arg1.jump);
     }
   }
   OP(CHARMAP) {
-    ICHARMAP *ir = (ICHARMAP *)pc;
-    if (bitset_get(ir->set, *cur++)) {
+    if (bitset_get(pc->arg0.set, *cur++)) {
       DISPATCH_NEXT;
     } else {
       --cur;
       failflag = 1;
-      JUMP(ir->jump);
+      JUMP(pc->arg1.jump);
     }
   }
   OP(STRING) {
-    ISTRING *ir = (ISTRING *)pc;
     int next;
-    if ((next = nezvm_string_equal(ir->str, cur)) > 0) {
+    if ((next = nezvm_string_equal(pc->arg0.str, cur)) > 0) {
       cur += next;
       DISPATCH_NEXT;
     } else {
       failflag = 1;
-      JUMP(ir->jump);
+      JUMP(pc->arg1.jump);
     }
   }
   OP(ANY) {
-    IANY *ir = (IANY *)pc;
     if (*cur++ != 0) {
       DISPATCH_NEXT;
     } else {
       --cur;
       failflag = 1;
-      JUMP(ir->jump);
+      JUMP(pc->arg0.jump);
     }
   }
   OP(PUSHpos) {
@@ -212,8 +190,7 @@ long nez_VM_Execute(ParsingContext context, NezVMInstruction *inst) {
     DISPATCH_NEXT;
   }
   OP(STOREflag) {
-    ISTOREflag *ir = (ISTOREflag *)pc;
-    failflag = ir->val;
+    failflag = pc->arg0.val;
     DISPATCH_NEXT;
   }
   OP(NEW) {
@@ -231,9 +208,8 @@ long nez_VM_Execute(ParsingContext context, NezVMInstruction *inst) {
     DISPATCH_NEXT;
   }
   OP(COMMIT) {
-    ICOMMIT *ir = (ICOMMIT *)pc;
     ParsingObject po = nez_commitLog(context, (int)POP_SP());
-    nez_pushDataLog(context, LazyLink_T, 0, ir->index, NULL, po);
+    nez_pushDataLog(context, LazyLink_T, 0, pc->arg0.val, NULL, po);
     DISPATCH_NEXT;
   }
   OP(ABORT) {
@@ -241,80 +217,62 @@ long nez_VM_Execute(ParsingContext context, NezVMInstruction *inst) {
     DISPATCH_NEXT;
   }
   OP(TAG) {
-    ITAG *ir = (ITAG *)pc;
-    nez_pushDataLog(context, LazyTag_T, 0, 0, (const char*)&ir->tag->text, NULL);
+    nez_pushDataLog(context, LazyTag_T, 0, 0, (const char*)&pc->arg0.str->text, NULL);
     DISPATCH_NEXT;
   }
   OP(VALUE) {
-    IVALUE *ir = (IVALUE *)pc;
-    nez_pushDataLog(context, LazyValue_T, 0, 0, (const char*)&ir->value->text, NULL);
+    nez_pushDataLog(context, LazyValue_T, 0, 0, (const char*)&pc->arg0.str->text, NULL);
     DISPATCH_NEXT;
   }
-  OP(MEMOIZE) {
-  }
-  OP(LOOKUP) {
-  }
-  OP(MEMOIZENODE) {
-  }
-  OP(LOOKUPNODE) {
-  }
   OP(NOTCHAR) {
-    INOTCHAR *ir = (INOTCHAR *)pc;
-    if (*cur == ir->c) {
+    if (*cur == pc->arg0.c) {
       failflag = 1;
-      JUMP(ir->jump);
+      JUMP(pc->arg1.jump);
     }
     DISPATCH_NEXT;
   }
   OP(NOTCHARMAP) {
-    INOTCHARMAP *ir = (INOTCHARMAP *)pc;
-    if (bitset_get(ir->set, *cur)) {
+    if (bitset_get(pc->arg0.set, *cur)) {
       failflag = 1;
-      JUMP(ir->jump);
+      JUMP(pc->arg1.jump);
     }
     DISPATCH_NEXT;
   }
   OP(NOTSTRING) {
-    INOTSTRING *ir = (INOTSTRING *)pc;
-    if (nezvm_string_equal(ir->str, cur) > 0) {
+    if (nezvm_string_equal(pc->arg0.str, cur) > 0) {
       failflag = 1;
-      JUMP(ir->jump);
+      JUMP(pc->arg1.jump);
     }
     DISPATCH_NEXT;
   }
   OP(NOTCHARANY) {
-    INOTCHARANY *ir = (INOTCHARANY *)pc;
-    if (*cur++ == ir->c) {
+    if (*cur++ == pc->arg0.c) {
       --cur;
       failflag = 1;
-      JUMP(ir->jump);
+      JUMP(pc->arg1.jump);
     }
     DISPATCH_NEXT;
   }
   OP(OPTIONALCHAR) {
-    IOPTIONALCHAR *ir = (IOPTIONALCHAR *)pc;
-    if (*cur == ir->c) {
+    if (*cur == pc->arg0.c) {
       ++cur;
     }
     DISPATCH_NEXT;
   }
   OP(OPTIONALCHARMAP) {
-    IOPTIONALCHARMAP *ir = (IOPTIONALCHARMAP *)pc;
-    if (bitset_get(ir->set, *cur)) {
+    if (bitset_get(pc->arg0.set, *cur)) {
       ++cur;
     }
     DISPATCH_NEXT;
   }
   OP(OPTIONALSTRING) {
-    IOPTIONALSTRING *ir = (IOPTIONALSTRING *)pc;
-    cur += nezvm_string_equal(ir->str, cur);
+    cur += nezvm_string_equal(pc->arg0.str, cur);
     DISPATCH_NEXT;
   }
   OP(ZEROMORECHARMAP) {
-    IZEROMORECHARMAP *ir = (IZEROMORECHARMAP *)pc;
   L_head:
     ;
-    if (bitset_get(ir->set, *cur)) {
+    if (bitset_get(pc->arg0.set, *cur)) {
       cur++;
       goto L_head;
     }
@@ -372,7 +330,7 @@ NezVMInstruction *nez_VM_Prepare(ParsingContext context,
   const void **table = (const void **)nez_VM_Execute(context, NULL);
   NezVMInstruction *ip = inst;
   for (i = 0; i < context->bytecode_length; i++) {
-    NezVMInstructionBase *pc = (NezVMInstructionBase *)ip;
+    NezVMInstruction *pc = (NezVMInstruction *)ip;
     pc->addr = (const void *)table[pc->opcode];
     ++ip;
   }

@@ -1,3 +1,4 @@
+#include "libnez.h"
 #include "nezvm.h"
 #include <stdio.h>
 
@@ -10,18 +11,21 @@ ParsingContext nez_CreateParsingContext(const char *filename) {
   ctx->mpool = (MemoryPool)malloc(sizeof(struct MemoryPool));
   ctx->inputs = loadFile(filename, &ctx->input_size);
   ctx->stack_pointer_base =
-      (long *)malloc(sizeof(long) * PARSING_CONTEXT_MAX_STACK_LENGTH);
-  ctx->call_stack_pointer_base = (NezVMInstruction **)malloc(
-      sizeof(NezVMInstruction *) * PARSING_CONTEXT_MAX_STACK_LENGTH);
+      (StackEntry)malloc(sizeof(union StackEntry) * PARSING_CONTEXT_MAX_STACK_LENGTH);
   ctx->stack_pointer = &ctx->stack_pointer_base[0];
-  ctx->call_stack_pointer = &ctx->call_stack_pointer_base[0];
+  // ctx->stack_pointer_base =
+  //     (long *)malloc(sizeof(long) * PARSING_CONTEXT_MAX_STACK_LENGTH);
+  // ctx->call_stack_pointer_base = (NezVMInstruction **)malloc(
+  //     sizeof(NezVMInstruction *) * PARSING_CONTEXT_MAX_STACK_LENGTH);
+  // ctx->stack_pointer = &ctx->stack_pointer_base[0];
+  // ctx->call_stack_pointer = &ctx->call_stack_pointer_base[0];
   return ctx;
 }
 
 void nez_DisposeParsingContext(ParsingContext ctx) {
   free(ctx->inputs);
   free(ctx->mpool);
-  free(ctx->call_stack_pointer_base);
+  // free(ctx->call_stack_pointer_base);
   free(ctx->stack_pointer_base);
   free(ctx);
 }
