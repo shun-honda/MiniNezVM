@@ -283,9 +283,10 @@ NezVMInstruction *nez_LoadMachineCode(ParsingContext context,
   context->bytecode_length = info.bytecode_length;
   context->pool_size = info.pool_size_info;
 #if defined(NEZVM_COUNT_BYTECODE_MALLOCED_SIZE)
-  fprintf(stderr, "malloced_size=%zdKB, %zdKB\n",
-          (sizeof(*inst) * info.bytecode_length) / 1024,
-          bytecode_malloced_size / 1024);
+  fprintf(stderr, "instruction_size=%zd\n", sizeof(*inst));
+  fprintf(stderr, "malloced_size=%zd[Byte], %zd[Byte]\n",
+          (sizeof(*inst) * info.bytecode_length),
+          bytecode_malloced_size);
 #endif
   free(buf);
   return nez_VM_Prepare(context, head);

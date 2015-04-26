@@ -51,7 +51,7 @@ static ParsingObject nez_newObject2(ParsingContext context, const char *cur,
 
 #define PUSH_IP(PC) (sp++)->func = (PC)
 #define POP_IP() --sp
-#define SP_TOP(INST) (*sp)
+#define SP_TOP(INST) (sp->pos)
 #define PUSH_SP(INST) ((sp++)->pos = (INST))
 #define POP_SP(INST) ((--sp)->pos)
 
@@ -92,6 +92,7 @@ long nez_VM_Execute(ParsingContext context, NezVMInstruction *inst) {
   StackEntry sp;
   pc = inst + context->startPoint;
   sp = context->stack_pointer;
+  fprintf(stderr, "%zd\n", sizeof(const char*));
 
   if (inst == NULL) {
     return (long)table;
@@ -183,6 +184,10 @@ long nez_VM_Execute(ParsingContext context, NezVMInstruction *inst) {
   }
   OP(POPpos) {
     (void)POP_SP();
+    DISPATCH_NEXT;
+  }
+  OP(GETpos) {
+    cur = (sp-1)->pos;
     DISPATCH_NEXT;
   }
   OP(STOREpos) {

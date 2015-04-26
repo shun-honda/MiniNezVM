@@ -29,6 +29,7 @@ typedef struct nezvm_string {
 	OP(PUSHpos)\
 	OP(PUSHmark)\
 	OP(POPpos)\
+	OP(GETpos)\
 	OP(STOREpos)\
 	OP(STOREflag)\
 	OP(NEW)\
