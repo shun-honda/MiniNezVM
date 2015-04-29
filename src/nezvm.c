@@ -30,35 +30,22 @@ static int nezvm_string_equal(nezvm_string_ptr_t str, const char *t) {
 #endif
 }
 
-static ParsingObject nez_newObject2(ParsingContext context, const char *cur,
-                                    MemoryPool mpool, ParsingObject left) {
-  ParsingObject po = nez_newObject(context, cur);
-#if 1
-  *po = *left;
-#else
-  memcpy(po, left, sizeof(*po));
-#endif
-  return po;
-}
-
-#if __GNUC__ >= 3
-#define likely(x) __builtin_expect(!!(x), 1)
-#define unlikely(x) __builtin_expect(!!(x), 0)
-#else
-#define likely(x) (x)
-#define unlikely(x) (x)
-#endif
+// #if __GNUC__ >= 3
+// #define likely(x) __builtin_expect(!!(x), 1)
+// #define unlikely(x) __builtin_expect(!!(x), 0)
+// #else
+// #define likely(x) (x)
+// #define unlikely(x) (x)
+// #endif
 
 #define PUSH_IP(PC) (sp++)->func = (PC)
 #define POP_IP() --sp
-#define SP_TOP(INST) (sp->pos)
 #define PUSH_SP(INST) ((sp++)->pos = (INST))
 #define POP_SP(INST) ((--sp)->pos)
 
 #define GET_ADDR(PC) ((PC)->addr)
 #define DISPATCH_NEXT goto *GET_ADDR(++pc)
 #define JUMP(dst) goto *GET_ADDR(pc = dst)
-#define JUMP_REL(dst) goto *GET_ADDR(pc += dst)
 #define RET goto *GET_ADDR(pc = (POP_IP())->func)
 
 #define OP(OP) NEZVM_OP_##OP:
@@ -70,27 +57,11 @@ long nez_VM_Execute(ParsingContext context, NezVMInstruction *inst) {
 #undef DEFINE_TABLE
   };
 
-#if 1
-#define LEFT left
-  ParsingObject left = NULL;
-#else
-#define LEFT context->left
-#endif
   register const char *cur = context->inputs + context->pos;
-#if 0
-#define MPOOL pool
-  MemoryPool pool = context->mpool;
-#else
-#define MPOOL context->mpool
-#endif
-
-  // const char *Reg1 = 0;
-  // const char *Reg2 = 0;
-  // const char *Reg3 = 0;
   register int failflag = 0;
   register const NezVMInstruction *pc;
   StackEntry sp;
-  pc = inst + context->startPoint;
+  pc = inst + 1;
   sp = context->stack_pointer;
   fprintf(stderr, "%zd\n", sizeof(const char*));
 
@@ -99,12 +70,10 @@ long nez_VM_Execute(ParsingContext context, NezVMInstruction *inst) {
   }
 
   PUSH_IP(inst);
-  LEFT = nez_setObject_(context, LEFT, nez_newObject(context, cur));
 
   goto *GET_ADDR(pc);
 
   OP(EXIT) {
-    context->left = nez_commitLog(context, 0);
     context->pos = cur - context->inputs;
     return failflag;
   }
@@ -178,10 +147,6 @@ long nez_VM_Execute(ParsingContext context, NezVMInstruction *inst) {
     PUSH_SP(cur);
     DISPATCH_NEXT;
   }
-  OP(PUSHmark) {
-    PUSH_SP((const char *)(long)nez_markLogStack(context));
-    DISPATCH_NEXT;
-  }
   OP(POPpos) {
     (void)POP_SP();
     DISPATCH_NEXT;
@@ -196,37 +161,6 @@ long nez_VM_Execute(ParsingContext context, NezVMInstruction *inst) {
   }
   OP(STOREflag) {
     failflag = pc->arg0.val;
-    DISPATCH_NEXT;
-  }
-  OP(NEW) {
-    PUSH_SP((const char *)(long)nez_markLogStack(context));
-    nez_pushDataLog(context, LazyNew_T, cur - context->inputs, -1, NULL, NULL);
-    DISPATCH_NEXT;
-  }
-  OP(LEFTJOIN) {
-    //PUSH_SP((const char *)(long)nez_markLogStack(context));
-    nez_pushDataLog(context, LazyLeftJoin_T, cur - context->inputs, 0, NULL, NULL);
-    DISPATCH_NEXT;
-  }
-  OP(CAPTURE) {
-    nez_pushDataLog(context, LazyCapture_T, cur - context->inputs, 0, NULL, NULL);
-    DISPATCH_NEXT;
-  }
-  OP(COMMIT) {
-    ParsingObject po = nez_commitLog(context, (int)POP_SP());
-    nez_pushDataLog(context, LazyLink_T, 0, pc->arg0.val, NULL, po);
-    DISPATCH_NEXT;
-  }
-  OP(ABORT) {
-    nez_abortLog(context, (int)POP_SP());
-    DISPATCH_NEXT;
-  }
-  OP(TAG) {
-    nez_pushDataLog(context, LazyTag_T, 0, 0, (const char*)&pc->arg0.str->text, NULL);
-    DISPATCH_NEXT;
-  }
-  OP(VALUE) {
-    nez_pushDataLog(context, LazyValue_T, 0, 0, (const char*)&pc->arg0.str->text, NULL);
     DISPATCH_NEXT;
   }
   OP(NOTCHAR) {
@@ -283,26 +217,21 @@ long nez_VM_Execute(ParsingContext context, NezVMInstruction *inst) {
     }
     DISPATCH_NEXT;
   }
-
-
   return -1;
 }
 
-void dump_pego(ParsingObject *pego, char *source, int level);
+// void dump_pego(ParsingObject *pego, char *source, int level);
 
-ParsingObject nez_Parse(ParsingContext context, NezVMInstruction *inst) {
+void nez_Parse(ParsingContext context, NezVMInstruction *inst) {
   if (nez_VM_Execute(context, inst)) {
     nez_PrintErrorInfo("parse error");
   }
-  dump_pego(&context->left, context->inputs, 0);
-  return context->left;
 }
 
 #define NEZVM_STAT 5
 void nez_ParseStat(ParsingContext context, NezVMInstruction *inst) {
   for (int i = 0; i < NEZVM_STAT; i++) {
     uint64_t start, end;
-    MemoryPool_Reset(context->mpool);
     start = timer();
     if (nez_VM_Execute(context, inst)) {
       nez_PrintErrorInfo("parse error");
@@ -310,23 +239,8 @@ void nez_ParseStat(ParsingContext context, NezVMInstruction *inst) {
     end = timer();
     fprintf(stderr, "ErapsedTime: %llu msec\n",
             (unsigned long long)end - start);
-    nez_DisposeObject(context->left);
-    context->unusedObject = NULL;
-    context->unusedLog = NULL;
     context->pos = 0;
   }
-}
-
-void nez_Match(ParsingContext context, NezVMInstruction *inst) {
-  uint64_t start, end;
-  start = timer();
-  if (nez_VM_Execute(context, inst)) {
-    nez_PrintErrorInfo("parse error");
-  }
-  end = timer();
-  fprintf(stderr, "ErapsedTime: %llu msec\n", (unsigned long long)end - start);
-  fprintf(stdout, "match\n\n");
-  nez_DisposeObject(context->left);
 }
 
 NezVMInstruction *nez_VM_Prepare(ParsingContext context,

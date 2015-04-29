@@ -7,29 +7,20 @@ char *loadFile(const char *filename, size_t *length);
 ParsingContext nez_CreateParsingContext(const char *filename) {
   ParsingContext ctx = (ParsingContext)malloc(sizeof(struct ParsingContext));
   ctx->pos = ctx->input_size = 0;
-  ctx->startPoint = 1;
-  ctx->mpool = (MemoryPool)malloc(sizeof(struct MemoryPool));
   ctx->inputs = loadFile(filename, &ctx->input_size);
   ctx->stack_pointer_base =
       (StackEntry)malloc(sizeof(union StackEntry) * PARSING_CONTEXT_MAX_STACK_LENGTH);
   ctx->stack_pointer = &ctx->stack_pointer_base[0];
-  // ctx->stack_pointer_base =
-  //     (long *)malloc(sizeof(long) * PARSING_CONTEXT_MAX_STACK_LENGTH);
-  // ctx->call_stack_pointer_base = (NezVMInstruction **)malloc(
-  //     sizeof(NezVMInstruction *) * PARSING_CONTEXT_MAX_STACK_LENGTH);
-  // ctx->stack_pointer = &ctx->stack_pointer_base[0];
-  // ctx->call_stack_pointer = &ctx->call_stack_pointer_base[0];
   return ctx;
 }
 
 void nez_DisposeParsingContext(ParsingContext ctx) {
   free(ctx->inputs);
-  free(ctx->mpool);
-  // free(ctx->call_stack_pointer_base);
   free(ctx->stack_pointer_base);
   free(ctx);
 }
 
+#if 0
 void nez_DisposeObject(ParsingObject pego) {
   ParsingObject *child;
   assert(pego != NULL);
@@ -290,3 +281,4 @@ void nez_abortLog(ParsingContext ctx, int mark) {
 int nez_markLogStack(ParsingContext ctx) {
   return ctx->logStackSize;
 }
+#endif

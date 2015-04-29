@@ -5,6 +5,7 @@
 #ifndef LIBNEZ_H
 #define LIBNEZ_H
 
+#if 0
 struct ParsingObject {
   int refc; // referencing counting gc
   int child_size;
@@ -39,6 +40,8 @@ struct MemoryPool {
   size_t init_size;
 };
 
+#endif
+
 union StackEntry {
   const char* pos;
   const struct NezVMInstruction *func;
@@ -48,15 +51,15 @@ struct ParsingContext {
   char *inputs;
   size_t input_size;
   long pos;
-  struct ParsingObject *left;
-  struct ParsingObject *unusedObject;
+  //struct ParsingObject *left;
+  //struct ParsingObject *unusedObject;
 
-  int logStackSize;
-  struct ParsingLog *logStack;
-  struct ParsingLog *unusedLog;
+  //int logStackSize;
+  //struct ParsingLog *logStack;
+  //struct ParsingLog *unusedLog;
 
-  size_t pool_size;
-  struct MemoryPool *mpool;
+  // size_t pool_size;
+  //struct MemoryPool *mpool;
 
   long bytecode_length;
   long startPoint;
@@ -69,12 +72,17 @@ struct ParsingContext {
   // struct NezVMInstruction **call_stack_pointer_base;
 };
 
+
+#if 0
 typedef struct ParsingObject *ParsingObject;
 typedef struct ParsingLog *ParsingLog;
-typedef struct ParsingContext *ParsingContext;
 typedef struct MemoryPool *MemoryPool;
+#endif
+
+typedef struct ParsingContext *ParsingContext;
 typedef union StackEntry* StackEntry;
 
+#if 0
 extern MemoryPool nez_CreateMemoryPool(MemoryPool mpool, size_t init_size);
 extern void MemoryPool_Reset(MemoryPool mpool);
 extern void nez_DisposeMemoryPool(MemoryPool mpool);
@@ -88,10 +96,13 @@ static inline ParsingLog MemoryPool_AllocParsingLog(MemoryPool mpool) {
   assert(mpool->lidx < mpool->init_size);
   return &mpool->log_pool[mpool->lidx++];
 }
+#endif
 
 #define PARSING_CONTEXT_MAX_STACK_LENGTH 1024
 ParsingContext nez_CreateParsingContext(const char *filename);
 void nez_DisposeParsingContext(ParsingContext ctx);
+
+#if 0
 void nez_DisposeObject(ParsingObject pego);
 
 void nez_setObject(ParsingContext ctx, ParsingObject *var, ParsingObject o);
@@ -104,5 +115,6 @@ void nez_pushDataLog(ParsingContext ctx, int type, long pos,
 ParsingObject nez_commitLog(ParsingContext ctx, int mark);
 void nez_abortLog(ParsingContext ctx, int mark);
 int nez_markLogStack(ParsingContext ctx);
+#endif
 
 #endif

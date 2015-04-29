@@ -6,8 +6,6 @@
 #include "libnez.h"
 #include "nezvm.h"
 
-void dump_pego_file(FILE *file, ParsingObject *pego, char *source, int level);
-
 static void nez_ShowUsage(const char *file) {
   // fprintf(stderr, "Usage: %s -f nez_bytecode target_file\n", file);
   fprintf(stderr, "\nnezvm <command> optional files\n");
@@ -57,30 +55,12 @@ int main(int argc, char *const argv[]) {
   }
   context = nez_CreateParsingContext(input_file);
   inst = nez_LoadMachineCode(context, syntax_file, "File");
-  nez_CreateMemoryPool(context->mpool, 16*1024*1024);
   if (output_type == NULL || !strcmp(output_type, "pego")) {
-    ParsingObject po = nez_Parse(context, inst);
-    nez_DisposeObject(po);
-  } else if (!strcmp(output_type, "match")) {
-    nez_Match(context, inst);
-  } else if (!strcmp(output_type, "stat")) {
-    nez_ParseStat(context, inst);
-  } else if (!strcmp(output_type, "file")) {
-    if (output_file == NULL) {
-      nez_PrintErrorInfo("not input outoutfile");
-    }
     nez_Parse(context, inst);
-    FILE *file;
-    file = fopen(output_file, "w");
-    if (file == NULL) {
-      assert(0 && "can not open file");
-    }
-    dump_pego_file(file, &context->left, context->inputs, 0);
-    nez_DisposeObject(context->left);
-    fclose(file);
+  }else if (!strcmp(output_type, "stat")) {
+    nez_ParseStat(context, inst);
   }
   nez_DisposeInstruction(inst, context->bytecode_length);
-  nez_DisposeMemoryPool(context->mpool);
   nez_DisposeParsingContext(context);
   return 0;
 }

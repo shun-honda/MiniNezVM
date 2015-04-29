@@ -30,20 +30,6 @@ typedef struct ByteCodeLoader {
   NezVMInstruction *head;
 } ByteCodeLoader;
 
-static const char *get_opname(uint8_t opcode) {
-  switch (opcode) {
-#define OP_DUMPCASE(OP) \
-  case NEZVM_OP_##OP:   \
-    return "" #OP;
-    NEZ_IR_EACH(OP_DUMPCASE);
-  default:
-    assert(0 && "UNREACHABLE");
-    break;
-#undef OP_DUMPCASE
-  }
-  return "";
-}
-
 char *loadFile(const char *filename, size_t *length) {
   size_t len = 0;
   FILE *fp = fopen(filename, "rb");
@@ -121,16 +107,6 @@ static nezvm_string_ptr_t Loader_ReadString(ByteCodeLoader *loader) {
   return str;
 }
 
-static nezvm_string_ptr_t Loader_ReadName(ByteCodeLoader *loader) {
-  uint32_t len = Loader_Read16(loader);
-  nezvm_string_ptr_t str = (nezvm_string_ptr_t)__malloc(sizeof(*str) + len);
-  str->len = len;
-  memcpy(str->text, loader->input + loader->info->pos, len);
-  str->text[len] = 0;
-  loader->info->pos += len;
-  return str;
-}
-
 void nez_EmitInstruction(NezVMInstruction* ir, ByteCodeLoader *loader) {
   switch(ir->opcode) {
     case NEZVM_OP_JUMP:
@@ -168,19 +144,6 @@ void nez_EmitInstruction(NezVMInstruction* ir, ByteCodeLoader *loader) {
     }
     case NEZVM_OP_STOREflag: {
       ir->arg0.val = Loader_Read32(loader);
-      break;
-    }
-    case NEZVM_OP_LEFTJOIN: {
-      ir->arg0.val = Loader_Read32(loader);
-      break;
-    }
-    case NEZVM_OP_COMMIT: {
-      ir->arg0.val = Loader_Read32(loader);
-      break;
-    }
-    case NEZVM_OP_TAG:
-    case NEZVM_OP_VALUE: {
-      ir->arg0.str = Loader_ReadName(loader);
       break;
     }
     case NEZVM_OP_OPTIONALCHAR: {
@@ -227,33 +190,10 @@ NezVMInstruction *nez_LoadMachineCode(ParsingContext context,
   }
   info.filename[info.filename_length] = 0;
 
-  /* determine the starting point */
-  int ruleSize = read32(buf, &info);
-  char **ruleTable = (char **)malloc(sizeof(char *) * ruleSize);
-  for (int i = 0; i < ruleSize; i++) {
-    int ruleNameLen = read32(buf, &info);
-    ruleTable[i] = (char *)malloc(ruleNameLen);
-    for (int j = 0; j < ruleNameLen; j++) {
-      ruleTable[i][j] = buf[info.pos++];
-    }
-    long index = read64(buf, &info);
-    if (nonTerminalName != NULL) {
-      if (!strcmp(ruleTable[i], nonTerminalName)) {
-        context->startPoint = index;
-      }
-    }
-  }
-
   /* bytecode length */
   info.bytecode_length = read64(buf, &info);
   dump_byteCodeInfo(&info);
   free(info.filename);
-
-  /* dispose rule table to deterimine the starting point */
-  for (int i = 0; i < ruleSize; i++) {
-    free(ruleTable[i]);
-  }
-  free(ruleTable);
 
   /* 
   ** head is a tmporary variable that indecates the begining
@@ -271,7 +211,6 @@ NezVMInstruction *nez_LoadMachineCode(ParsingContext context,
   /* f_convert[] is function pointer that emit instruction */
   for (uint64_t i = 0; i < info.bytecode_length; i++) {
     inst->opcode = buf[info.pos++];
-    fprintf(stderr, "%s\n", get_opname(inst->opcode));
     nez_EmitInstruction(inst, &loader);
     inst++;
   }
@@ -281,7 +220,6 @@ NezVMInstruction *nez_LoadMachineCode(ParsingContext context,
 #endif
 
   context->bytecode_length = info.bytecode_length;
-  context->pool_size = info.pool_size_info;
 #if defined(NEZVM_COUNT_BYTECODE_MALLOCED_SIZE)
   fprintf(stderr, "instruction_size=%zd\n", sizeof(*inst));
   fprintf(stderr, "malloced_size=%zd[Byte], %zd[Byte]\n",
@@ -304,9 +242,7 @@ void nez_DisposeInstruction(NezVMInstruction *ir, long length) {
       }
       case NEZVM_OP_STRING:
       case NEZVM_OP_NOTSTRING:
-      case NEZVM_OP_OPTIONALSTRING:
-      case NEZVM_OP_TAG:
-      case NEZVM_OP_VALUE: {
+      case NEZVM_OP_OPTIONALSTRING: {
         free(ir->arg0.str);
         break;
       }

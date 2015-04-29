@@ -27,18 +27,10 @@ typedef struct nezvm_string {
 	OP(STRING)\
 	OP(ANY)\
 	OP(PUSHpos)\
-	OP(PUSHmark)\
 	OP(POPpos)\
 	OP(GETpos)\
 	OP(STOREpos)\
 	OP(STOREflag)\
-	OP(NEW)\
-	OP(LEFTJOIN)\
-	OP(CAPTURE)\
-	OP(COMMIT)\
-	OP(ABORT)\
-	OP(TAG)\
-	OP(VALUE)\
 	OP(NOTCHAR)\
 	OP(NOTCHARMAP)\
 	OP(NOTSTRING)\
@@ -79,8 +71,7 @@ NezVMInstruction *nez_LoadMachineCode(ParsingContext context,
                                       const char *nonTerminalName);
 void nez_DisposeInstruction(NezVMInstruction *inst, long length);
 
-ParsingObject nez_Parse(ParsingContext context, NezVMInstruction *inst);
+void nez_Parse(ParsingContext context, NezVMInstruction *inst);
 void nez_ParseStat(ParsingContext context, NezVMInstruction *inst);
-void nez_Match(ParsingContext context, NezVMInstruction *inst);
 
 #endif

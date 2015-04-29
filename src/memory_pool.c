@@ -1,3 +1,4 @@
+#if 0
 #include <stdio.h>
 #include "libnez.h"
 
@@ -27,3 +28,4 @@ void nez_DisposeMemoryPool(MemoryPool mpool) {
   mpool->object_pool = NULL;
   mpool->log_pool = NULL;
 }
+#endif
