@@ -30,6 +30,28 @@ static int nezvm_string_equal(nezvm_string_ptr_t str, const char *t) {
 #endif
 }
 
+static inline void PUSH_IP(ParsingContext ctx, const NezVMInstruction *inst) {
+  (ctx->stack_pointer++)->func = inst;
+  if(ctx->stack_pointer >= &ctx->stack_pointer_base[ctx->stack_size]) {
+    nez_PrintErrorInfo("Error:stack over flow");
+  }
+}
+
+static inline void PUSH_SP(ParsingContext ctx, const char* pos) {
+  (ctx->stack_pointer++)->pos = pos;
+  if(ctx->stack_pointer >= &ctx->stack_pointer_base[ctx->stack_size]) {
+    nez_PrintErrorInfo("Error:stack over flow");
+  }
+}
+
+static inline StackEntry POP_SP(ParsingContext ctx) {
+  --ctx->stack_pointer;
+  if(ctx->stack_pointer < ctx->stack_pointer_base) {
+    nez_PrintErrorInfo("Error:POP_SP");
+  }
+  return ctx->stack_pointer;
+}
+
 // #if __GNUC__ >= 3
 // #define likely(x) __builtin_expect(!!(x), 1)
 // #define unlikely(x) __builtin_expect(!!(x), 0)
@@ -38,15 +60,15 @@ static int nezvm_string_equal(nezvm_string_ptr_t str, const char *t) {
 // #define unlikely(x) (x)
 // #endif
 
-#define PUSH_IP(PC) (sp++)->func = (PC)
-#define POP_IP() --sp
-#define PUSH_SP(INST) ((sp++)->pos = (INST))
-#define POP_SP(INST) ((--sp)->pos)
+//#define PUSH_IP(PC) (sp++)->func = (PC)
+//#define POP_IP() --sp
+//#define PUSH_SP(INST) ((sp++)->pos = (INST))
+//#define POP_SP(INST) ((--sp)->pos)
 
 #define GET_ADDR(PC) ((PC)->addr)
 #define DISPATCH_NEXT goto *GET_ADDR(++pc)
 #define JUMP(dst) goto *GET_ADDR(pc = dst)
-#define RET goto *GET_ADDR(pc = (POP_IP())->func)
+#define RET goto *GET_ADDR(pc = (POP_SP(context))->func)
 
 #define OP(OP) NEZVM_OP_##OP:
 
@@ -60,16 +82,14 @@ long nez_VM_Execute(ParsingContext context, NezVMInstruction *inst) {
   register const char *cur = context->inputs + context->pos;
   register int failflag = 0;
   register const NezVMInstruction *pc;
-  StackEntry sp;
   pc = inst + 1;
-  sp = context->stack_pointer;
   fprintf(stderr, "%zd\n", sizeof(const char*));
 
   if (inst == NULL) {
     return (long)table;
   }
 
-  PUSH_IP(inst);
+  PUSH_IP(context, inst);
 
   goto *GET_ADDR(pc);
 
@@ -83,7 +103,7 @@ long nez_VM_Execute(ParsingContext context, NezVMInstruction *inst) {
   }
   OP(CALL) {
     NezVMInstruction *dst = pc->arg0.jump;
-    PUSH_IP(pc + 1);
+    PUSH_IP(context, pc + 1);
     JUMP(dst);
   }
   OP(RET) {
@@ -144,19 +164,19 @@ long nez_VM_Execute(ParsingContext context, NezVMInstruction *inst) {
     }
   }
   OP(PUSHpos) {
-    PUSH_SP(cur);
+    PUSH_SP(context, cur);
     DISPATCH_NEXT;
   }
   OP(POPpos) {
-    (void)POP_SP();
+    (void)POP_SP(context);
     DISPATCH_NEXT;
   }
   OP(GETpos) {
-    cur = (sp-1)->pos;
+    cur = (context->stack_pointer-1)->pos;
     DISPATCH_NEXT;
   }
   OP(STOREpos) {
-    cur = POP_SP();
+    cur = POP_SP(context)->pos;
     DISPATCH_NEXT;
   }
   OP(STOREflag) {
@@ -241,6 +261,7 @@ void nez_ParseStat(ParsingContext context, NezVMInstruction *inst) {
             (unsigned long long)end - start);
     context->pos = 0;
   }
+  fprintf(stderr, "stack_size=%zd[Byte]\n", sizeof(union StackEntry) * context->stack_size);
 }
 
 NezVMInstruction *nez_VM_Prepare(ParsingContext context,

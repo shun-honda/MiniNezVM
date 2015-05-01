@@ -11,6 +11,7 @@ ParsingContext nez_CreateParsingContext(const char *filename) {
   ctx->stack_pointer_base =
       (StackEntry)malloc(sizeof(union StackEntry) * PARSING_CONTEXT_MAX_STACK_LENGTH);
   ctx->stack_pointer = &ctx->stack_pointer_base[0];
+  ctx->stack_size = PARSING_CONTEXT_MAX_STACK_LENGTH;
   return ctx;
 }
 

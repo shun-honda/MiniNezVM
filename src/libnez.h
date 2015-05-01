@@ -64,6 +64,7 @@ struct ParsingContext {
   long bytecode_length;
   long startPoint;
 
+  size_t stack_size;
   union StackEntry* stack_pointer;
   union StackEntry* stack_pointer_base;
   // long *stack_pointer;
