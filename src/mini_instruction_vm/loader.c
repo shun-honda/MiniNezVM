@@ -132,7 +132,7 @@ void nez_EmitInstruction(NezVMInstruction* ir, ByteCodeLoader *loader, ParsingCo
     case NEZVM_OP_CALL: {
       ir->arg = loader->input[loader->info->pos++];
       context->call_table[ir->arg] = Loader_Read32(loader);
-      fprintf(stderr, "%d: %d\n", ir->arg, context->call_table[ir->arg]);
+      // fprintf(stderr, "%d: %d\n", ir->arg, context->call_table[ir->arg]);
       break;
     }
     case NEZVM_OP_CHAR: {
@@ -189,7 +189,7 @@ NezVMInstruction *nez_LoadMachineCode(ParsingContext context,
   /* f_convert[] is function pointer that emit instruction */
   for (uint64_t i = 0; i < info.bytecode_length; i++) {
     inst->op = buf[info.pos++];
-    fprintf(stderr, "%s\n", get_opname(inst->op));
+    // fprintf(stderr, "%s\n", get_opname(inst->op));
     nez_EmitInstruction(inst, &loader, context);
     inst++;
   }

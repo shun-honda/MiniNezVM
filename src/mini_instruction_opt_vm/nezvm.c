@@ -85,7 +85,7 @@ long nez_VM_Execute(ParsingContext context, NezVMInstruction *inst) {
   register int failflag = 0;
   register const NezVMInstruction *pc;
   pc = inst + 1;
-  fprintf(stderr, "%zd\n", sizeof(const char*));
+  // fprintf(stderr, "%zd\n", sizeof(const char*));
 
   PUSH_IP(context, 0);
 
