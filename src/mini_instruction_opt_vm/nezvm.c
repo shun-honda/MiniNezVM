@@ -1,6 +1,6 @@
 #include <stdio.h>
+#include <stdlib.h>
 #include <sys/time.h> // gettimeofday
-#include "libnez.h"
 #include "nezvm.h"
 
 void nez_PrintErrorInfo(const char *errmsg) {
@@ -72,7 +72,7 @@ static inline StackEntry POP_SP(ParsingContext ctx) {
 #define JUMP(dst) goto *GET_ADDR(pc += dst)
 #define RET goto *GET_ADDR(pc = inst + (POP_SP(context))->jmp)
 
-#define OP(OP) NEZVM_OP_##OP:
+#define OP(OP) NEZVM_OP_##OP: //fprintf(stderr, "[%d] %s\n", pc - inst, get_opname(pc->op));
 
 long nez_VM_Execute(ParsingContext context, NezVMInstruction *inst) {
   static const void *OPJUMP[] = {
@@ -104,10 +104,11 @@ long nez_VM_Execute(ParsingContext context, NezVMInstruction *inst) {
     DISPATCH_NEXT;
   }
   OP(JUMP) {
+    //fprintf(stderr, "%d\n", pc->arg);
     JUMP(pc->arg);
   }
   OP(CALL) {
-    //fprintf(stderr, "[%ld] %c, jmp: %d\n", pc-inst, *cur, pc->un);
+    //fprintf(stderr, "[%ld] %c, jmp: %d\n", pc-inst, *cur, pc->arg);
     PUSH_IP(context, pc - inst + 1);
     JUMP(context->call_table[pc->arg]);
   }
@@ -241,4 +242,23 @@ void nez_ParseStat(ParsingContext context, NezVMInstruction *inst) {
     context->pos = 0;
   }
   fprintf(stderr, "stack_size=%zd[Byte]\n", sizeof(union StackEntry) * context->stack_size);
+}
+
+char *loadFile(const char *filename, size_t *length);
+
+ParsingContext nez_CreateParsingContext(const char *filename) {
+  ParsingContext ctx = (ParsingContext)malloc(sizeof(struct ParsingContext));
+  ctx->pos = ctx->input_size = 0;
+  ctx->inputs = loadFile(filename, &ctx->input_size);
+  ctx->stack_pointer_base =
+      (StackEntry)malloc(sizeof(union StackEntry) * PARSING_CONTEXT_MAX_STACK_LENGTH);
+  ctx->stack_pointer = &ctx->stack_pointer_base[0];
+  ctx->stack_size = PARSING_CONTEXT_MAX_STACK_LENGTH;
+  return ctx;
+}
+
+void nez_DisposeParsingContext(ParsingContext ctx) {
+  free(ctx->inputs);
+  free(ctx->stack_pointer_base);
+  free(ctx);
 }

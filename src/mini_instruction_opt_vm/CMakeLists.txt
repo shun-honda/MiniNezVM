@@ -23,7 +23,7 @@ else(MSVC)
 	SET(CFLAGS "${CFLAGS} -Wall -Wcomment -Wunused-macros -std=c99")
 	SET(CMAKE_C_FLAGS "${CFLAGS}")
 	SET(CMAKE_CXX_FLAGS "${CFLAGS}")
-	SET(CMAKE_C_FLAGS_RELEASE      "${CMAKE_C_FLAGS} -O2 -g -DNDEBUG")
+	SET(CMAKE_C_FLAGS_RELEASE      "${CMAKE_C_FLAGS} -O2 -Wl,-s -g -DNDEBUG")
 	SET(CMAKE_C_FLAGS_DEBUG        "${CMAKE_C_FLAGS} -O0 -g3")
 	SET(CMAKE_C_FLAGS_COMPRESSED   "${CMAKE_C_FLAGS} -Os -g0")
 	SET(CMAKE_CXX_FLAGS_RELEASE    "${CMAKE_CXX_FLAGS} -O3 -g")
@@ -34,7 +34,6 @@ endif(MSVC)
 ## Source Code settings
 set(NEZVM_SOURCE 
 			nezvm.c
-			libnez.c
 			main.c
 			loader.c
 )

@@ -1,5 +1,6 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include <stdint.h>
 #include <string.h>
 #include <assert.h>
 #include "nezvm.h"
@@ -73,13 +74,13 @@ static void dump_byteCodeInfo(byteCodeInfo *info) {
   fprintf(stderr, "\n");
 }
 
-static uint16_t read16(char *inputs, byteCodeInfo *info) {
+static int16_t read16(char *inputs, byteCodeInfo *info) {
   uint16_t value = (uint8_t)inputs[info->pos++];
   value = (value) | ((uint8_t)inputs[info->pos++] << 8);
   return value;
 }
 
-static uint32_t read32(char *inputs, byteCodeInfo *info) {
+static int32_t read32(char *inputs, byteCodeInfo *info) {
   uint32_t value = 0;
   value = (uint8_t)inputs[info->pos++];
   value = (value) | ((uint8_t)inputs[info->pos++] << 8);
@@ -88,17 +89,17 @@ static uint32_t read32(char *inputs, byteCodeInfo *info) {
   return value;
 }
 
-static uint64_t read64(char *inputs, byteCodeInfo *info) {
+static int64_t read64(char *inputs, byteCodeInfo *info) {
   uint64_t value1 = read32(inputs, info);
   uint64_t value2 = read32(inputs, info);
   return value2 << 32 | value1;
 }
 
-static uint32_t Loader_Read32(ByteCodeLoader *loader) {
+static int32_t Loader_Read32(ByteCodeLoader *loader) {
   return read32(loader->input, loader->info);
 }
 
-static uint16_t Loader_Read16(ByteCodeLoader *loader) {
+static int16_t Loader_Read16(ByteCodeLoader *loader) {
   return read16(loader->input, loader->info);
 }
 

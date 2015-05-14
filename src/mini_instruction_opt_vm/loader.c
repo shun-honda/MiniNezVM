@@ -1,6 +1,7 @@
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
-#include "libnez.h"
+#include <assert.h>
 #include "nezvm.h"
 
 #define NEZVM_COUNT_BYTECODE_MALLOCED_SIZE 1
@@ -14,7 +15,7 @@ static void *__malloc(size_t size) {
   return malloc(size);
 }
 
-static const char *get_opname(short opcode) {
+const char *get_opname(short opcode) {
   switch (opcode) {
 #define OP_DUMPCASE(OP) \
   case NEZVM_OP_##OP:   \
@@ -72,13 +73,13 @@ static void dump_byteCodeInfo(byteCodeInfo *info) {
   fprintf(stderr, "\n");
 }
 
-static uint16_t read16(char *inputs, byteCodeInfo *info) {
+static short read16(char *inputs, byteCodeInfo *info) {
   uint16_t value = (uint8_t)inputs[info->pos++];
   value = (value) | ((uint8_t)inputs[info->pos++] << 8);
   return value;
 }
 
-static uint32_t read32(char *inputs, byteCodeInfo *info) {
+static int read32(char *inputs, byteCodeInfo *info) {
   uint32_t value = 0;
   value = (uint8_t)inputs[info->pos++];
   value = (value) | ((uint8_t)inputs[info->pos++] << 8);
@@ -87,7 +88,7 @@ static uint32_t read32(char *inputs, byteCodeInfo *info) {
   return value;
 }
 
-static uint64_t read64(char *inputs, byteCodeInfo *info) {
+static long read64(char *inputs, byteCodeInfo *info) {
   uint64_t value1 = read32(inputs, info);
   uint64_t value2 = read32(inputs, info);
   return value2 << 32 | value1;
@@ -115,7 +116,7 @@ void nez_EmitInstruction(NezVMInstruction* ir, ByteCodeLoader *loader, ParsingCo
   switch(ir->op) {
     case NEZVM_OP_JUMP:
     case NEZVM_OP_IFFAIL: {
-      ir->arg = loader->input[loader->info->pos++];
+      ir->arg = Loader_Read16(loader);
       break;
     }
     case NEZVM_OP_CALL: {
@@ -239,7 +240,7 @@ NezVMInstruction *nez_LoadMachineCode(ParsingContext context,
   /* f_convert[] is function pointer that emit instruction */
   for (uint64_t i = 0; i < info.bytecode_length; i++) {
     inst->op = buf[info.pos++];
-    // fprintf(stderr, "%s\n", get_opname(inst->op));
+    fprintf(stderr, "%s\n", get_opname(inst->op));
     nez_EmitInstruction(inst, &loader, context);
     inst++;
   }
