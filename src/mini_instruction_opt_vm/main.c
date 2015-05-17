@@ -31,9 +31,7 @@ int main(int argc, char *const argv[]) {
   }
   context = nez_CreateParsingContext(input_file);
   inst = nez_LoadMachineCode(context, syntax_file, "File");
-  if (output_type == NULL || !strcmp(output_type, "pego")) {
-    nez_Parse(context, inst);
-  }else if (!strcmp(output_type, "stat")) {
+  if (!strcmp(output_type, "stat")) {
     nez_ParseStat(context, inst);
   }
   nez_DisposeInstruction(inst, context->bytecode_length);

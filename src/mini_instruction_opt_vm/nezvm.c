@@ -52,21 +52,6 @@ static inline StackEntry POP_SP(ParsingContext ctx) {
   return ctx->stack_pointer;
 }
 
-// #if __GNUC__ >= 3
-// #define likely(x) __builtin_expect(!!(x), 1)
-// #define unlikely(x) __builtin_expect(!!(x), 0)
-// #else
-// #define likely(x) (x)
-// #define unlikely(x) (x)
-// #endif
-
-//#define PUSH_IP(PC) (sp++)->func = (PC)
-//#define POP_IP() --sp
-//#define PUSH_SP(INST) ((sp++)->pos = (INST))
-//#define POP_SP(INST) ((--sp)->pos)
-
-#define NEXT_OP (OPJUMP[++pc->op])
-
 #define GET_ADDR(PC) (OPJUMP[(PC)->op])
 #define DISPATCH_NEXT goto *GET_ADDR(++pc)
 #define JUMP(dst) goto *GET_ADDR(pc += dst)
@@ -85,7 +70,6 @@ long nez_VM_Execute(ParsingContext context, NezVMInstruction *inst) {
   register int failflag = 0;
   register const NezVMInstruction *pc;
   pc = inst + 1;
-  // fprintf(stderr, "%zd\n", sizeof(const char*));
 
   PUSH_IP(context, 0);
 
@@ -104,11 +88,9 @@ long nez_VM_Execute(ParsingContext context, NezVMInstruction *inst) {
     DISPATCH_NEXT;
   }
   OP(JUMP) {
-    //fprintf(stderr, "%d\n", pc->arg);
     JUMP(pc->arg);
   }
   OP(CALL) {
-    //fprintf(stderr, "[%ld] %c, jmp: %d\n", pc-inst, *cur, pc->arg);
     PUSH_IP(context, pc - inst + 1);
     JUMP(context->call_table[pc->arg]);
   }
@@ -205,14 +187,6 @@ long nez_VM_Execute(ParsingContext context, NezVMInstruction *inst) {
     DISPATCH_NEXT;
   }
   return -1;
-}
-
-// void dump_pego(ParsingObject *pego, char *source, int level);
-
-void nez_Parse(ParsingContext context, NezVMInstruction *inst) {
-  if (nez_VM_Execute(context, inst)) {
-    nez_PrintErrorInfo("parse error");
-  }
 }
 
 #define NEZVM_STAT 5

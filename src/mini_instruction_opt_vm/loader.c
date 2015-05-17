@@ -4,20 +4,6 @@
 #include <assert.h>
 #include "nezvm.h"
 
-const char *get_opname(short opcode) {
-  switch (opcode) {
-#define OP_DUMPCASE(OP) \
-  case NEZVM_OP_##OP:   \
-    return "" #OP;
-    NEZ_IR_EACH(OP_DUMPCASE);
-  default:
-    assert(0 && "UNREACHABLE");
-    break;
-#undef OP_DUMPCASE
-  }
-  return "";
-}
-
 typedef struct byteCodeInfo {
   int pos;
   uint8_t version0;
@@ -53,13 +39,6 @@ char *loadFile(const char *filename, size_t *length) {
   fclose(fp);
   *length = len;
   return source;
-}
-
-static void dump_byteCodeInfo(byteCodeInfo *info) {
-  fprintf(stderr, "ByteCodeVersion:%u.%u\n", info->version0, info->version1);
-  fprintf(stderr, "PEGFile:%s\n", info->filename);
-  fprintf(stderr, "LengthOfByteCode:%zd\n", (size_t)info->bytecode_length);
-  fprintf(stderr, "\n");
 }
 
 static short read16(char *inputs, byteCodeInfo *info) {
@@ -196,7 +175,6 @@ NezVMInstruction *nez_LoadMachineCode(ParsingContext context,
 
   /* bytecode length */
   info.bytecode_length = read64(buf, &info);
-  dump_byteCodeInfo(&info);
   free(info.filename);
 
   /* 
@@ -215,7 +193,6 @@ NezVMInstruction *nez_LoadMachineCode(ParsingContext context,
   /* f_convert[] is function pointer that emit instruction */
   for (uint64_t i = 0; i < info.bytecode_length; i++) {
     inst->op = buf[info.pos++];
-    fprintf(stderr, "%s\n", get_opname(inst->op));
     nez_EmitInstruction(inst, &loader, context);
     inst++;
   }
