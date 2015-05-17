@@ -178,23 +178,10 @@ long nez_VM_Execute(ParsingContext context, NezVMInstruction *inst) {
     }
     DISPATCH_NEXT;
   }
-  OP(NOTCHARMAP) {
-    if (bitset_get(context->set_table[pc->arg].set, *cur)) {
-      failflag = 1;
-      JUMP(context->set_table[pc->arg].jump);
-    }
-    DISPATCH_NEXT;
-  }
   OP(NOTSTRING) {
     if (nezvm_string_equal(context->str_table[pc->arg].str, cur) > 0) {
       failflag = 1;
       JUMP(context->str_table[pc->arg].jump);
-    }
-    DISPATCH_NEXT;
-  }
-  OP(OPTIONALCHAR) {
-    if (*cur == pc->arg) {
-      ++cur;
     }
     DISPATCH_NEXT;
   }

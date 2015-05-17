@@ -125,8 +125,7 @@ void nez_EmitInstruction(NezVMInstruction* ir, ByteCodeLoader *loader, ParsingCo
       // fprintf(stderr, "%d: %d\n", ir->arg, context->call_table[ir->arg]);
       break;
     }
-    case NEZVM_OP_CHAR:
-    case NEZVM_OP_OPTIONALCHAR: {
+    case NEZVM_OP_CHAR: {
       ir->arg = loader->input[loader->info->pos++];
       break;
     }
@@ -138,8 +137,7 @@ void nez_EmitInstruction(NezVMInstruction* ir, ByteCodeLoader *loader, ParsingCo
       // fprintf(stderr, "%d:char\n", ir->arg);
       break;
     }
-    case NEZVM_OP_CHARMAP:
-    case NEZVM_OP_NOTCHARMAP: {
+    case NEZVM_OP_CHARMAP: {
       ir->arg = loader->input[loader->info->pos++];
       int len = Loader_Read16(loader);
       context->set_table[ir->arg].set = (bitset_t *)__malloc(sizeof(bitset_t));
@@ -171,13 +169,6 @@ void nez_EmitInstruction(NezVMInstruction* ir, ByteCodeLoader *loader, ParsingCo
       ir->arg = loader->input[loader->info->pos++];
       context->str_table[ir->arg].str = Loader_ReadString(loader);
       context->str_table[ir->arg].jump = Loader_Read32(loader);
-      context->str_table[ir->arg].type = 1;
-      // fprintf(stderr, "string %d: %s\n", ir->arg, context->str_table[ir->arg].str->text);
-      break;
-    }
-    case NEZVM_OP_OPTIONALSTRING: {
-      ir->arg = loader->input[loader->info->pos++];
-      context->str_table[ir->arg].str = Loader_ReadString(loader);
       context->str_table[ir->arg].type = 1;
       // fprintf(stderr, "string %d: %s\n", ir->arg, context->str_table[ir->arg].str->text);
       break;
