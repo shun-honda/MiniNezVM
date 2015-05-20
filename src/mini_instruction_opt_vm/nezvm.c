@@ -39,8 +39,7 @@ static inline void PUSH_SP(ParsingContext ctx, const char* pos) {
 }
 
 static inline StackEntry POP_SP(ParsingContext ctx) {
-  --ctx->stack_pointer;
-  return ctx->stack_pointer;
+  return --ctx->stack_pointer;
 }
 
 #define GET_ADDR(PC) (OPJUMP[(PC)->op])
@@ -60,6 +59,10 @@ long nez_VM_Execute(ParsingContext context, NezVMInstruction *inst) {
   register const char *cur = context->inputs + context->pos;
   register int failflag = 0;
   register const NezVMInstruction *pc;
+  register const int* call_table = context->call_table;
+  register const bitset_ptr_t* set_table = context->set_table;
+  register const nezvm_string_ptr_t* str_table = context->str_table;
+
   pc = inst + 1;
 
   PUSH_IP(context, 0);
@@ -83,7 +86,7 @@ long nez_VM_Execute(ParsingContext context, NezVMInstruction *inst) {
   }
   OP(CALL) {
     PUSH_IP(context, pc - inst + 1);
-    JUMP(context->call_table[pc->arg]);
+    JUMP(call_table[pc->arg]);
   }
   OP(RET) {
     RET;
@@ -104,10 +107,10 @@ long nez_VM_Execute(ParsingContext context, NezVMInstruction *inst) {
     DISPATCH_NEXT;
   }
   OP(CHARMAP) {
-    if (!bitset_get(context->set_table[pc->arg].set, *cur++)) {
+    if (!bitset_get(set_table[pc->arg].set, *cur++)) {
       --cur;
       failflag = 1;
-      JUMP(context->set_table[pc->arg].jump);
+      JUMP(set_table[pc->arg].jump);
     }
     DISPATCH_NEXT;
   }
@@ -117,7 +120,7 @@ long nez_VM_Execute(ParsingContext context, NezVMInstruction *inst) {
       cur += next;
     } else {
       failflag = 1;
-      JUMP(context->str_table[pc->arg].jump);
+      JUMP(str_table[pc->arg].jump);
     }
     DISPATCH_NEXT;
   }
@@ -145,33 +148,33 @@ long nez_VM_Execute(ParsingContext context, NezVMInstruction *inst) {
     DISPATCH_NEXT;
   }
   OP(NOTCHAR) {
-    if (*cur == context->str_table[pc->arg].c) {
+    if (*cur == str_table[pc->arg].c) {
       failflag = 1;
-      JUMP(context->str_table[pc->arg].jump);
+      JUMP(str_table[pc->arg].jump);
     }
     DISPATCH_NEXT;
   }
   OP(NOTSTRING) {
-    if (nezvm_string_equal(context->str_table[pc->arg].str, cur) > 0) {
+    if (nezvm_string_equal(str_table[pc->arg].str, cur) > 0) {
       failflag = 1;
-      JUMP(context->str_table[pc->arg].jump);
+      JUMP(str_table[pc->arg].jump);
     }
     DISPATCH_NEXT;
   }
   OP(OPTIONALCHARMAP) {
-    if (bitset_get(context->set_table[pc->arg].set, *cur)) {
+    if (bitset_get(set_table[pc->arg].set, *cur)) {
       ++cur;
     }
     DISPATCH_NEXT;
   }
   OP(OPTIONALSTRING) {
-    cur += nezvm_string_equal(context->str_table[pc->arg].str, cur);
+    cur += nezvm_string_equal(str_table[pc->arg].str, cur);
     DISPATCH_NEXT;
   }
   OP(ZEROMORECHARMAP) {
   L_head:
     ;
-    if (bitset_get(context->set_table[pc->arg].set, *cur)) {
+    if (bitset_get(set_table[pc->arg].set, *cur)) {
       cur++;
       goto L_head;
     }
