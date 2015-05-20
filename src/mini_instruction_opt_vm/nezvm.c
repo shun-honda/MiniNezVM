@@ -39,6 +39,7 @@ static inline void PUSH_SP(ParsingContext ctx, const char* pos) {
 }
 
 static inline StackEntry POP_SP(ParsingContext ctx) {
+  --ctx->stack_pointer;
   return ctx->stack_pointer;
 }
 
