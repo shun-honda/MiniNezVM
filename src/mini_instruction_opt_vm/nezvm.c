@@ -32,23 +32,13 @@ static int nezvm_string_equal(struct nezvm_string* str, const char *t) {
 
 static inline void PUSH_IP(ParsingContext ctx, long jmp) {
   (ctx->stack_pointer++)->jmp = jmp;
-  if(ctx->stack_pointer >= &ctx->stack_pointer_base[ctx->stack_size]) {
-    nez_PrintErrorInfo("Error:stack over flow");
-  }
 }
 
 static inline void PUSH_SP(ParsingContext ctx, const char* pos) {
   (ctx->stack_pointer++)->pos = pos;
-  if(ctx->stack_pointer >= &ctx->stack_pointer_base[ctx->stack_size]) {
-    nez_PrintErrorInfo("Error:stack over flow");
-  }
 }
 
 static inline StackEntry POP_SP(ParsingContext ctx) {
-  --ctx->stack_pointer;
-  if(ctx->stack_pointer < ctx->stack_pointer_base) {
-    nez_PrintErrorInfo("Error:POP_SP");
-  }
   return ctx->stack_pointer;
 }
 
