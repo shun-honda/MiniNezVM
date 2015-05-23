@@ -86,7 +86,6 @@ long nez_VM_Execute(ParsingContext context, NezVMInstruction *inst) {
   register int failflag = 0;
   register const NezVMInstruction *pc;
   pc = inst + 1;
-  // fprintf(stderr, "%zd\n", sizeof(const char*));
 
   PUSH_IP(context, 0);
 
@@ -108,7 +107,6 @@ long nez_VM_Execute(ParsingContext context, NezVMInstruction *inst) {
     JUMP(pc->arg);
   }
   OP(CALL) {
-    // fprintf(stderr, "[%ld] %c, jmp: %d\n", pc-inst, *cur, pc->arg);
     PUSH_IP(context, pc - inst + 1);
     JUMP(context->call_table[pc->arg]);
   }
@@ -118,9 +116,8 @@ long nez_VM_Execute(ParsingContext context, NezVMInstruction *inst) {
   OP(IFFAIL) {
     if (failflag) {
       JUMP(pc->arg);
-    } else {
-      DISPATCH_NEXT;
     }
+    DISPATCH_NEXT;
   }
   OP(CHAR) {
     if (pc->arg != *cur) {

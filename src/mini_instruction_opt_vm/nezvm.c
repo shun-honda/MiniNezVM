@@ -71,6 +71,7 @@ long nez_VM_Execute(ParsingContext context, NezVMInstruction *inst) {
 
   OP(EXIT) {
     context->pos = cur - context->inputs;
+    fprintf(stderr, "%s\n", cur);
     return failflag;
   }
   OP(SUCC) {
@@ -108,6 +109,7 @@ long nez_VM_Execute(ParsingContext context, NezVMInstruction *inst) {
   }
   OP(CHARMAP) {
     if (!bitset_get(set_table[pc->arg].set, *cur++)) {
+      // fprintf(stderr, "%u\n", (unsigned char)*cur);
       --cur;
       failflag = 1;
       JUMP(set_table[pc->arg].jump);

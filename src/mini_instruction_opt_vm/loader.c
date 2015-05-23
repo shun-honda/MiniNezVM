@@ -109,7 +109,7 @@ void nez_EmitInstruction(NezVMInstruction* ir, ByteCodeLoader *loader, ParsingCo
       context->set_table[ir->arg].set = (bitset_t *)malloc(sizeof(bitset_t));
       bitset_init(context->set_table[ir->arg].set);
       for (int i = 0; i < len; i++) {
-        unsigned c = loader->input[loader->info->pos++];
+        unsigned char c = loader->input[loader->info->pos++];
         bitset_set(context->set_table[ir->arg].set, c);
       }
       context->set_table[ir->arg].jump = Loader_Read32(loader);
